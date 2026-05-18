@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+.dist/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+**/docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+
+# Data
+*.sqlite
+*.db
+audio_uploads/
