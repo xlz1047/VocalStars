@@ -1,63 +1,91 @@
 """Breath detector: combines extractor and model to produce per-frame breath predictions."""
 
 import numpy as np
+import torch
 from typing import Any
 
+from ml.breath_analysis.extractor import BreathExtractor
+from ml.breath_analysis.model import BreathHead
 from ml.feature_extraction.audio_utils import load_audio, frame_audio
 
 
 class BreathDetector:
-    """Detects breath events using a heuristic (low RMS + high ZCR) or a neural model.
+    """Detects breath events in vocal audio using a neural model or DSP heuristics.
 
-    Heuristic rule: a frame is a breath event when its RMS energy is below
-    ``rms_threshold`` AND its zero-crossing rate exceeds ``zcr_threshold``.
-    Voiced frames that pass neither condition count toward the support score.
+    When ``model_path`` is provided, loads a trained ``BreathHead`` and uses it
+    for classification. Otherwise operates in heuristic-only mode via
+    ``BreathExtractor``.
+
+    Note: ``BreathHead`` requires (batch, 256, T) backbone embeddings. Until the
+    shared backbone (ml/_model/backbone.py) is wired in, ``analyze`` falls back
+    to the DSP heuristic even when a model is loaded.
 
     Args:
-        model: Optional PyTorch nn.Module breath classification head.
-        sr: Sample rate the detector operates at.
-        rms_threshold: RMS threshold below which a frame is a breath candidate.
-        zcr_threshold: ZCR fraction a breath candidate must exceed.
+        model_path: Path to a ``BreathHead`` state-dict checkpoint, or None for
+            heuristic-only mode.
     """
 
-    def __init__(
-        self,
-        model=None,
-        sr: int = 16000,
-        rms_threshold: float = 0.02,
-        zcr_threshold: float = 0.1,
-    ) -> None:
-        self._model = model
-        self._sr = sr
-        self._rms_threshold = rms_threshold
-        self._zcr_threshold = zcr_threshold
+    def __init__(self, model_path: str | None = None) -> None:
+        self._extractor = BreathExtractor()
+        self._model: BreathHead | None = None
+        if model_path is not None:
+            model = BreathHead()
+            state = torch.load(model_path, map_location="cpu")
+            model.load_state_dict(state)
+            model.eval()
+            self._model = model
 
-    def analyze(self, audio: np.ndarray, sr: int = 16000) -> dict[str, Any]:
-        """Detect breath events and compute support metrics.
+    def analyze(self, audio_chunk: np.ndarray, sr: int = 16000) -> tuple[bool, float]:
+        """Classify a single audio chunk as breath or non-breath.
+
+        Uses the loaded ``BreathHead`` model when available; falls back to the
+        DSP heuristic until backbone embeddings are integrated.
 
         Args:
-            audio: 1-D float32 numpy array of audio samples.
-            sr: Sample rate of the audio.
+            audio_chunk: 1-D float32 numpy array of audio samples.
+            sr: Sample rate of the audio in Hz.
 
         Returns:
-            Dict with keys: breath_cycles, support_score, breath_length_variation.
+            Tuple of (breath_detected, confidence) where confidence is in [0.0, 1.0].
+        """
+        features = self._extractor.extract_features(audio_chunk, sr=sr)
+        label, confidence = self._extractor.classify_heuristic(features)
+        return label == "breath", confidence
+
+    def analyze_breath(self, audio_path: str) -> dict[str, Any]:
+        """Load a full audio file and run per-frame breath analysis.
+
+        Frames the audio with a 2048-sample window and 512-sample hop, classifies
+        each frame, then aggregates into file-level breath metrics.
+
+        Args:
+            audio_path: Path to the audio file.
+
+        Returns:
+            Dict with keys:
+                breath_detected (bool): True if any breath frame was found.
+                breath_confidence (float): Mean confidence across breath frames.
+                breath_cycles (int): Number of breath onset events (non-breath → breath).
+                support_score (float): Fraction of frames classified as voiced (non-breath).
+                breath_length_variation (float): Std dev of breath run durations in seconds.
         """
         hop_len = 512
+        audio = load_audio(audio_path, sr=16000)
         frames = frame_audio(audio, frame_len=2048, hop_len=hop_len)
-        breath_flags = [self._is_breath_frame(f) for f in frames]
-        return self._compute_metrics(breath_flags, hop_len=hop_len, sr=sr)
 
-    def _is_breath_frame(self, frame: np.ndarray) -> bool:
-        rms = float(np.sqrt(np.mean(frame ** 2)))
-        zcr = float(np.mean(np.abs(np.diff(np.sign(frame)))) / 2)
-        return rms < self._rms_threshold and zcr > self._zcr_threshold
+        results = [self.analyze(f, sr=16000) for f in frames]
+        breath_flags = [r[0] for r in results]
+        confidences = [r[1] for r in results]
 
-    def _compute_metrics(
-        self, breath_flags: list[bool], hop_len: int, sr: int
-    ) -> dict[str, Any]:
-        total = len(breath_flags)
         breath_count = sum(breath_flags)
-        voiced_count = total - breath_count
+        total = len(breath_flags)
+
+        breath_detected = breath_count > 0
+        breath_confidence = (
+            float(np.mean([c for flag, c in zip(breath_flags, confidences) if flag]))
+            if breath_count > 0
+            else 0.0
+        )
 
         cycles = sum(
             1
@@ -65,6 +93,7 @@ class BreathDetector:
             if breath_flags[i] and not breath_flags[i - 1]
         )
 
+        voiced_count = total - breath_count
         support_score = round(voiced_count / total, 4) if total > 0 else 0.0
 
         breath_lengths: list[float] = []
@@ -73,16 +102,18 @@ class BreathDetector:
             if flag:
                 run += 1
             elif run > 0:
-                breath_lengths.append(run * hop_len / sr)
+                breath_lengths.append(run * hop_len / 16000)
                 run = 0
         if run > 0:
-            breath_lengths.append(run * hop_len / sr)
+            breath_lengths.append(run * hop_len / 16000)
 
         breath_length_variation = (
             round(float(np.std(breath_lengths)), 4) if len(breath_lengths) > 1 else 0.0
         )
 
         return {
+            "breath_detected": breath_detected,
+            "breath_confidence": round(breath_confidence, 4),
             "breath_cycles": cycles,
             "support_score": support_score,
             "breath_length_variation": breath_length_variation,
@@ -96,8 +127,7 @@ def analyze_breath(audio_path: str) -> dict[str, Any]:
         audio_path: Path to the audio file.
 
     Returns:
-        Dict with keys: breath_cycles, support_score, breath_length_variation.
+        Dict with keys: breath_detected, breath_confidence, breath_cycles,
+        support_score, breath_length_variation.
     """
-    audio = load_audio(audio_path, sr=16000)
-    detector = BreathDetector()
-    return detector.analyze(audio, sr=16000)
+    return BreathDetector().analyze_breath(audio_path)
