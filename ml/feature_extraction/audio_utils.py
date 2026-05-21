@@ -1,30 +1,21 @@
 """Audio I/O and preprocessing utilities: loading, resampling, and frame segmentation."""
 
+import librosa
 import numpy as np
-import torchaudio
-import torchaudio.transforms as T
 
 
 def load_audio(path: str, sr: int = 16000) -> np.ndarray:
     """Load an audio file, resample to target sample rate, and convert to mono float32.
 
     Args:
-        path: Path to the audio file (any format supported by torchaudio).
+        path: Path to the audio file.
         sr: Target sample rate in Hz. Defaults to 16000.
 
     Returns:
         1-D float32 numpy array of audio samples at the target sample rate.
     """
-    waveform, orig_sr = torchaudio.load(path)
-
-    if orig_sr != sr:
-        resampler = T.Resample(orig_freq=orig_sr, new_freq=sr)
-        waveform = resampler(waveform)
-
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)
-
-    return waveform.squeeze(0).numpy().astype(np.float32)
+    audio, _ = librosa.load(path, sr=sr, mono=True)
+    return audio.astype(np.float32)
 
 
 def frame_audio(

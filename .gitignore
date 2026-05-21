@@ -6,6 +6,9 @@ __pycache__/
 .env
 .venv/
 venv/
+/ml/CLAUDE.md
+/ml/data/raw
+
 
 # Node
 node_modules/
@@ -29,3 +32,6 @@ Thumbs.db
 *.sqlite
 *.db
 audio_uploads/
+
+/ml/raw/
+/ml/checkpoints/
