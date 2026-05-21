@@ -11,4 +11,4 @@ async def upload_audio(file: UploadFile = File(...)):
 
     content = await file.read()
     result = process_audio_file(file.filename, content)
-    return {"status": "accepted", "analysis_session": result}
+    return {"status": "accepted", "session_id": result.get("session_id"), "analysis_session": result}

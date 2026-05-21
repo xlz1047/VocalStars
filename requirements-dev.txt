@@ -1,0 +1,18 @@
+# Development and testing dependencies for VocalStars
+
+# Core audio processing
+librosa==0.10.0
+numpy==1.26.2
+soundfile==0.12.1
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Visualization
+matplotlib==3.8.2
+
+# ML (optional for advanced features, not required for basic testing)
+# torch==2.1.1
+# torchcrepe==0.0.21
+# parselmouth==0.3.3

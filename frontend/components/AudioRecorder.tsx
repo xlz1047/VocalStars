@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type ChangeEvent } from 'react'
-import { uploadAudioFile } from '../lib/api'
+import { uploadAudioFile, fetchAnalysis, fetchRecommendations } from '../lib/api'
 
 export default function AudioRecorder() {
   const [status, setStatus] = useState('Ready to upload your first clip.')
@@ -17,7 +17,15 @@ export default function AudioRecorder() {
     if (!selectedFile) return
     setStatus('Uploading session...')
     const response = await uploadAudioFile(selectedFile)
-    setStatus(response.status === 'accepted' ? 'Upload successful — analysis started.' : 'Upload failed.')
+    if (response?.status === 'accepted' && response.session_id) {
+      setStatus('Upload successful — fetching results...')
+      const analysis = await fetchAnalysis(response.session_id)
+      const recs = await fetchRecommendations(response.session_id)
+      // simple display in the status for now
+      setStatus(`Analysis: ${analysis?.report ? 'ready' : 'pending'}; Recs: ${recs?.recommendations?.length ?? 0}`)
+    } else {
+      setStatus('Upload failed.')
+    }
   }
 
   return (

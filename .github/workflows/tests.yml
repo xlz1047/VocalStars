@@ -1,0 +1,57 @@
+name: ML Pipeline Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'ml/**'
+      - 'tests/**'
+      - 'requirements*.txt'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.10', '3.11' ]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+
+    - name: Lint with flake8 (optional)
+      run: |
+        pip install flake8
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 ml tests --count --select=E9,F63,F7,F82 --show-source --statistics || true
+
+    - name: Run pytest with coverage
+      run: |
+        pytest tests/test_ml_pipeline.py -v --cov=ml --cov-report=xml --cov-report=term
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Upload test plots (if available)
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: ml-evaluation-plots-${{ matrix.python-version }}
+        path: tests/results/
+        retention-days: 7
