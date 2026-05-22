@@ -7,7 +7,7 @@ class RhythmHead(nn.Module):
 
     def __init__(self) -> None:
         super().__init__()
-        self.conv1 = nn.Conv1d(256, 128, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv1d(384, 128, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(128, 64, kernel_size=3, padding=1)
         self.conv3 = nn.Conv1d(64, 1, kernel_size=1)
         self.relu = nn.ReLU()

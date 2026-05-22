@@ -9,6 +9,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
@@ -30,11 +31,12 @@ from ml.data.popbutfy_dataset import PopBuTFyDataset
 from ml.data.base_dataset import SingingDataset
 from ml.training.evaluate import evaluate_model
 from ml.training.losses import MultiTaskLoss
+from ml.training.npz_dataset import NanoPitchDataset, f0_to_posteriorgram
 
 # ── constants ─────────────────────────────────────────────────────────────────
 _WARMUP_STEPS = 500
 _N_PITCH_BINS = 360
-_PITCH_BIN_HZ: torch.Tensor = 32.7 * (
+_PITCH_BIN_HZ: torch.Tensor = 31.7 * (
     2 ** (torch.arange(_N_PITCH_BINS, dtype=torch.float32) * 20.0 / 1200.0)
 )
 
@@ -75,15 +77,7 @@ def _singer_split(
     test_split: float,
     seed: int = 42,
 ) -> tuple[Subset, Subset, Subset]:
-    """Split by singer_id to avoid cross-singer data leakage.
-
-    Collects all unique singer IDs across every sample, shuffles them, then
-    assigns the last ``test_split`` fraction to test, the next ``val_split``
-    fraction to val, and the rest to train.
-
-    Reads singer IDs from the pre-built ``_files`` metadata list rather than
-    loading audio, so this runs in O(n) without any disk I/O.
-    """
+    """Split by singer_id to avoid cross-singer data leakage."""
     singer_to_indices: dict[str, list[int]] = defaultdict(list)
     offset = 0
     for ds in dataset._datasets:
@@ -122,45 +116,62 @@ def _singer_split(
     )
 
 
-def _hz_to_pitch_bins(pitch_hz: torch.Tensor, device: torch.device) -> torch.Tensor:
-    """Convert a batch of Hz values to 360-dim soft binary pitch targets.
+def _hz_to_pitch_bins(
+    pitch_hz: torch.Tensor, T: int, device: torch.device
+) -> torch.Tensor:
+    """Convert clip-level Hz values to per-frame ``(B, T, 360)`` soft targets.
 
-    A Gaussian centred on the nearest bin with sigma=1 bin is applied so that
-    adjacent bins carry small positive weight — this matches the CREPE-style
-    training target used by PitchHead.
+    The Gaussian is centred on the nearest bin (sigma = 1 bin = 20 cents).
+    Unvoiced clips (pitch_hz == 0) produce all-zero targets.  The same clip-level
+    pitch is broadcast across all T frames, which is a valid simplification for
+    short clips with a single dominant pitch.
 
     Args:
-        pitch_hz: Float tensor of shape (batch,).
+        pitch_hz: Float tensor of shape ``(B,)``.
+        T: Number of frames to broadcast across.
         device: Target device.
 
     Returns:
-        Float tensor of shape (batch, 360) with values in [0, 1].
+        Float tensor of shape ``(B, T, 360)`` with values in ``[0, 1]``.
     """
-    bins_hz = _PITCH_BIN_HZ.to(device)  # (360,)
-    # cents distance between each sample and each bin
-    hz_safe = pitch_hz.clamp(min=1e-6).unsqueeze(1)  # (batch, 1)
-    cents = 1200.0 * torch.log2(bins_hz.unsqueeze(0) / hz_safe)  # (batch, 360)
-    # 1-bin sigma ≈ 20 cents
-    targets = torch.exp(-0.5 * (cents / 20.0) ** 2)
-    # Zero out bins for unvoiced frames (pitch_hz == 0)
-    voiced = (pitch_hz > 0).float().unsqueeze(1)
-    return targets * voiced
+    bins_hz = _PITCH_BIN_HZ.to(device)                        # (360,)
+    hz_safe = pitch_hz.clamp(min=1e-6).unsqueeze(1)           # (B, 1)
+    cents = 1200.0 * torch.log2(bins_hz.unsqueeze(0) / hz_safe)  # (B, 360)
+    targets_clip = torch.exp(-0.5 * (cents / 20.0) ** 2)      # (B, 360)
+    voiced = (pitch_hz > 0).float().unsqueeze(1)               # (B, 1)
+    targets_clip = targets_clip * voiced                        # (B, 360)
+    return targets_clip.unsqueeze(1).expand(-1, T, -1)         # (B, T, 360)
 
 
 def _collate_fn(batch: list[tuple[torch.Tensor, dict]]) -> tuple[torch.Tensor, dict]:
-    """Collate a list of (mel_tensor, labels) pairs into a single batch dict.
+    """Collate ``(mel_tensor, labels)`` pairs into a time-major batch.
 
-    Onset frames are converted to a dense per-frame binary mask of the same
-    temporal length T as the mel input (before backbone downsampling), so the
-    training loop can derive a matching target for the rhythm head output.
-    Mel spectrograms are right-padded with zeros to the maximum length in the batch.
+    Mel spectrograms are zero-padded on the time axis to the maximum length and
+    transposed to time-major format ``(B, T, n_mels)`` for the GRU backbone.
+    Pitch targets are broadcast from clip-level Hz to per-frame ``(B, T, 360)``
+    soft Gaussian labels.
+
+    Args:
+        batch: List of ``(mel_tensor, labels)`` pairs.  ``mel_tensor`` has shape
+            ``(1, n_mels, T)`` from ``MelExtractor.compute_tensor``.
+
+    Returns:
+        Tuple of ``(mel_batch, targets)`` where:
+            mel_batch: ``(B, T_max, n_mels)`` float32.
+            targets:   Dict with keys ``pitch_hz``, ``onset_targets``,
+                       ``breath_target``, ``pitch_bins``.
     """
     mels, label_list = zip(*batch)
     B = len(mels)
+    n_mels = mels[0].shape[1]
     T = max(m.shape[-1] for m in mels)
-    mel_batch = torch.zeros(B, 1, 128, T, dtype=mels[0].dtype)
+
+    # Build (B, T, n_mels) time-major batch
+    mel_batch = torch.zeros(B, T, n_mels, dtype=mels[0].dtype)
     for i, m in enumerate(mels):
-        mel_batch[i, :, :, : m.shape[-1]] = m
+        t_i = m.shape[-1]
+        # m: (1, n_mels, T_i) → squeeze → (n_mels, T_i) → transpose → (T_i, n_mels)
+        mel_batch[i, :t_i, :] = m.squeeze(0).T
 
     pitch_hz = torch.tensor(
         [l.get("pitch_hz", 0.0) for l in label_list], dtype=torch.float32
@@ -179,7 +190,7 @@ def _collate_fn(batch: list[tuple[torch.Tensor, dict]]) -> tuple[torch.Tensor, d
     )
 
     return mel_batch, {
-        "pitch_hz": pitch_hz,
+        "pitch_hz":      pitch_hz,
         "onset_targets": onset_targets,
         "breath_target": breath_target,
     }
@@ -192,6 +203,33 @@ def _warmup_lambda(step: int) -> float:
     return 1.0
 
 
+def _augment_mel_batch(
+    mel_clean: torch.Tensor,
+    mel_noise: torch.Tensor,
+    snr_range: tuple[float, float],
+    device: torch.device,
+) -> torch.Tensor:
+    """Mix clean and noise log-mel at a random SNR (ported from NanoPitch train.py).
+
+    Args:
+        mel_clean: ``(B, T, 40)`` clean log-mel.
+        mel_noise: ``(B, T, 40)`` noise log-mel.
+        snr_range: ``(min_snr_db, max_snr_db)`` tuple.
+        device: Torch device.
+
+    Returns:
+        ``(B, T, 40)`` mixed log-mel.
+    """
+    B = mel_clean.size(0)
+    snr_db = (
+        torch.rand(B, 1, 1, device=device)
+        * (snr_range[1] - snr_range[0])
+        + snr_range[0]
+    )
+    gain_offset = -snr_db * (np.log(10.0) / 20.0)
+    return torch.logaddexp(mel_clean, mel_noise + gain_offset)
+
+
 # ── training loop ─────────────────────────────────────────────────────────────
 
 def train_one_epoch(
@@ -199,14 +237,18 @@ def train_one_epoch(
     loader: DataLoader,
     criterion: MultiTaskLoss,
     optimizer: AdamW,
-    warmup_scheduler,
     cosine_scheduler: CosineAnnealingLR,
     scaler: GradScaler,
     device: torch.device,
     global_step: int,
     wandb_run,
+    npz_loader: DataLoader | None = None,
+    snr_range: tuple[float, float] = (-5.0, 20.0),
 ) -> tuple[dict[str, float], int]:
     """Run one full pass over *loader*, updating weights and schedulers.
+
+    If *npz_loader* is provided, each singing-dataset batch is followed by one
+    NanoPitch-npz batch (with per-frame pitch and VAD supervision).
 
     Returns:
         Tuple of (aggregated loss dict with float means, updated global_step).
@@ -215,33 +257,34 @@ def train_one_epoch(
     totals: dict[str, float] = defaultdict(float)
     n_batches = 0
 
+    npz_iter = iter(npz_loader) if npz_loader is not None else None
+
     for mel, targets_raw in loader:
-        mel = mel.to(device, non_blocking=True)
+        mel = mel.to(device, non_blocking=True)          # (B, T, 40)
+        T = mel.shape[1]
 
-        pitch_bins = _hz_to_pitch_bins(targets_raw["pitch_hz"], device)
-
-        onset_t = targets_raw["onset_targets"].to(device, non_blocking=True)
-        breath_t = targets_raw["breath_target"].to(device, non_blocking=True)
+        pitch_bins = _hz_to_pitch_bins(targets_raw["pitch_hz"], T, device)  # (B, T, 360)
+        onset_t    = targets_raw["onset_targets"].to(device, non_blocking=True)  # (B, T)
+        breath_t   = targets_raw["breath_target"].to(device, non_blocking=True)  # (B,)
 
         optimizer.zero_grad(set_to_none=True)
-
         with autocast():
             preds = model(mel)
-            # onset_probs shape: (batch, 1, T_out) — downsample onset targets to T_out
             T_out = preds["onset_probs"].shape[-1]
-            # Simple strided sampling: pick every k-th frame to match backbone stride
-            stride = onset_t.shape[-1] // T_out
-            onset_t_ds = onset_t[:, ::stride][:, :T_out]
+            # Align onset targets to model output length (no-op when T_out == T)
+            stride = max(1, T // T_out)
+            onset_t_aligned = onset_t[:, ::stride][:, :T_out]
 
             losses = criterion(
                 {
                     "pitch_logits": preds["pitch_logits"],
                     "onset_probs":  preds["onset_probs"],
                     "breath_prob":  preds["breath_prob"],
+                    "vad_logits":   preds["vad_logits"],
                 },
                 {
                     "pitch_bins":    pitch_bins,
-                    "onset_targets": onset_t_ds,
+                    "onset_targets": onset_t_aligned.unsqueeze(1),
                     "breath_target": breath_t,
                 },
             )
@@ -251,30 +294,98 @@ def train_one_epoch(
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         scaler.step(optimizer)
         scaler.update()
-
-        # Warmup overrides cosine during warmup phase
-        if global_step < _WARMUP_STEPS:
-            for g, lr_scale in zip(
-                optimizer.param_groups,
-                [_warmup_lambda(global_step)] * len(optimizer.param_groups),
-            ):
-                g["lr"] = g["initial_lr"] * lr_scale
-        else:
-            cosine_scheduler.step()
-
+        _step_schedulers(optimizer, cosine_scheduler, global_step)
         global_step += 1
         n_batches += 1
         for k, v in losses.items():
             totals[k] += v.item()
-
         if wandb_run is not None:
-            wandb_run.log(
-                {f"train/{k}": v.item() for k, v in losses.items()},
-                step=global_step,
+            wandb_run.log({f"train/{k}": v.item() for k, v in losses.items()}, step=global_step)
+
+        # ── optional NanoPitch npz batch ──────────────────────────────────────
+        if npz_iter is not None:
+            global_step, n_batches, totals = _train_npz_step(
+                model, criterion, optimizer, cosine_scheduler, scaler,
+                device, npz_iter, npz_loader, snr_range,
+                global_step, n_batches, totals, wandb_run,
             )
 
     means = {k: v / max(n_batches, 1) for k, v in totals.items()}
     return means, global_step
+
+
+def _step_schedulers(optimizer, cosine_scheduler, global_step: int) -> None:
+    if global_step < _WARMUP_STEPS:
+        scale = _warmup_lambda(global_step)
+        for g in optimizer.param_groups:
+            g["lr"] = g["initial_lr"] * scale
+    else:
+        cosine_scheduler.step()
+
+
+def _train_npz_step(
+    model, criterion, optimizer, cosine_scheduler, scaler,
+    device, npz_iter, npz_loader, snr_range,
+    global_step, n_batches, totals, wandb_run,
+):
+    """Process one batch from the NanoPitch npz loader."""
+    try:
+        mel_clean, mel_noise, vad_gt, f0_gt = next(npz_iter)
+    except StopIteration:
+        npz_iter = iter(npz_loader)
+        mel_clean, mel_noise, vad_gt, f0_gt = next(npz_iter)
+
+    mel_clean = mel_clean.to(device)   # (B, T, 40)
+    mel_noise = mel_noise.to(device)
+    vad_gt    = vad_gt.to(device)      # (B, T)
+    f0_gt     = f0_gt.to(device)       # (B, T)
+
+    # Noise mixing
+    mel_mixed = _augment_mel_batch(mel_clean, mel_noise, snr_range, device)
+
+    B, T, _ = mel_mixed.shape
+    # Per-frame pitch posteriorgram targets
+    f0_np = f0_gt.cpu().numpy()
+    pitch_bins_np = np.stack([f0_to_posteriorgram(f0_np[b], n_frames=T) for b in range(B)])
+    pitch_bins = torch.from_numpy(pitch_bins_np).to(device)   # (B, T, 360)
+    vad_target = vad_gt.unsqueeze(-1)                          # (B, T, 1)
+
+    optimizer.zero_grad(set_to_none=True)
+    with autocast():
+        preds = model(mel_mixed)
+        T_out = preds["onset_probs"].shape[-1]
+        dummy_onset = torch.zeros(B, 1, T_out, device=device)
+        dummy_breath = torch.zeros(B, device=device)
+
+        losses = criterion(
+            {
+                "pitch_logits": preds["pitch_logits"],
+                "onset_probs":  dummy_onset,
+                "breath_prob":  preds["breath_prob"],
+                "vad_logits":   preds["vad_logits"],
+            },
+            {
+                "pitch_bins":    pitch_bins,
+                "onset_targets": dummy_onset,
+                "breath_target": dummy_breath,
+                "vad_target":    vad_target,
+            },
+        )
+
+    scaler.scale(losses["total_loss"]).backward()
+    scaler.unscale_(optimizer)
+    nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    scaler.step(optimizer)
+    scaler.update()
+    _step_schedulers(optimizer, cosine_scheduler, global_step)
+    global_step += 1
+    n_batches += 1
+    for k, v in losses.items():
+        totals[k] += v.item()
+    if wandb_run is not None:
+        wandb_run.log({f"train_npz/{k}": v.item() for k, v in losses.items()}, step=global_step)
+
+    return global_step, n_batches, totals
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -282,15 +393,42 @@ def train_one_epoch(
 def main() -> None:
     """Parse arguments and run the full training loop."""
     parser = argparse.ArgumentParser(description="Train VoiceCoachModel")
-    parser.add_argument("--data-dir",       required=True,               help="Path to datasets root")
-    parser.add_argument("--checkpoint-dir", default="ml/checkpoints/",   help="Directory to save checkpoints")
-    parser.add_argument("--epochs",         type=int,   default=50,       help="Number of training epochs")
-    parser.add_argument("--batch-size",     type=int,   default=32,       help="Batch size")
-    parser.add_argument("--lr",             type=float, default=1e-3,     help="Peak learning rate")
-    parser.add_argument("--val-split",      type=float, default=0.1,      help="Fraction of singers for validation")
-    parser.add_argument("--test-split",     type=float, default=0.1,      help="Fraction of singers for test")
-    parser.add_argument("--wandb",          action="store_true",          help="Enable Weights & Biases logging")
-    parser.add_argument("--resume",         default=None,                 help="Path to checkpoint to resume from")
+    parser.add_argument("--data-dir",              required=True,
+                        help="Path to datasets root")
+    parser.add_argument("--checkpoint-dir",        default="ml/checkpoints/",
+                        help="Directory to save checkpoints")
+    parser.add_argument("--epochs",                type=int,   default=50,
+                        help="Number of training epochs")
+    parser.add_argument("--batch-size",            type=int,   default=32,
+                        help="Batch size")
+    parser.add_argument("--lr",                    type=float, default=1e-3,
+                        help="Peak learning rate")
+    parser.add_argument("--val-split",             type=float, default=0.1,
+                        help="Fraction of singers for validation")
+    parser.add_argument("--test-split",            type=float, default=0.1,
+                        help="Fraction of singers for test")
+    parser.add_argument("--wandb",                 action="store_true",
+                        help="Enable Weights & Biases logging")
+    parser.add_argument("--resume",                default=None,
+                        help="Path to VoiceCoach checkpoint to resume from")
+    # NanoPitch integration
+    parser.add_argument("--use-pretrained",        action="store_true",
+                        help="Initialise backbone and pitch head from NanoPitch checkpoint")
+    parser.add_argument("--nanopitch-checkpoint",
+                        default="/Users/uddhavjain/Desktop/Drexel/audio projects/"
+                                "NanoPitchGroup/NanoPitch/training/runs/expD_best.pth",
+                        help="Path to NanoPitch .pth checkpoint for weight transfer")
+    parser.add_argument("--npz-dir",               default=None,
+                        help="Directory with NanoPitch clean.npz/noise.npz for co-training")
+    parser.add_argument("--npz-seq-len",           type=int,   default=200,
+                        help="Frame window length for NanoPitch npz dataset")
+    parser.add_argument("--snr-min",               type=float, default=-5.0,
+                        help="Min SNR in dB for npz noise mixing")
+    parser.add_argument("--snr-max",               type=float, default=20.0,
+                        help="Max SNR in dB for npz noise mixing")
+    parser.add_argument("--reset-lr",              action="store_true",
+                        help="After loading a --resume checkpoint, reset LR to --lr "
+                             "instead of continuing from the saved optimizer state")
     args = parser.parse_args()
 
     ckpt_dir = Path(args.checkpoint_dir)
@@ -314,11 +452,12 @@ def main() -> None:
         combined, val_split=args.val_split, test_split=args.test_split
     )
 
+    n_workers = min(4, os.cpu_count() or 1)
     train_loader = DataLoader(
         train_set,
         batch_size=args.batch_size,
         shuffle=True,
-        num_workers=min(4, os.cpu_count() or 1),
+        num_workers=n_workers,
         collate_fn=_collate_fn,
         pin_memory=device.type == "cuda",
     )
@@ -326,19 +465,37 @@ def main() -> None:
         val_set,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=min(4, os.cpu_count() or 1),
+        num_workers=n_workers,
         collate_fn=_collate_fn,
         pin_memory=device.type == "cuda",
     )
 
+    # ── optional NanoPitch npz co-training data ───────────────────────────────
+    npz_loader: DataLoader | None = None
+    if args.npz_dir:
+        print(f"Loading NanoPitch npz data from {args.npz_dir}…")
+        npz_ds = NanoPitchDataset(args.npz_dir, seq_len=args.npz_seq_len)
+        npz_loader = DataLoader(
+            npz_ds,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=n_workers,
+            pin_memory=device.type == "cuda",
+        )
+        print(f"  NanoPitch dataset: {len(npz_ds)} sequences")
+
     # ── model ─────────────────────────────────────────────────────────────────
-    model = VoiceCoachModel().to(device)
+    if args.use_pretrained:
+        print(f"Loading pretrained NanoPitch weights from {args.nanopitch_checkpoint}…")
+        model = VoiceCoachModel.from_nanopitch_checkpoint(args.nanopitch_checkpoint)
+    else:
+        model = VoiceCoachModel()
+    model = model.to(device)
     model.summary()
 
     criterion = MultiTaskLoss()
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
-    # Store initial LR on each param group for warmup rescaling
     for g in optimizer.param_groups:
         g["initial_lr"] = g["lr"]
 
@@ -359,12 +516,20 @@ def main() -> None:
         start_epoch = ckpt["epoch"] + 1
         best_val_loss = ckpt.get("val_loss", math.inf)
         print(f"Resumed from epoch {ckpt['epoch']}, val_loss={ckpt.get('val_loss', '?')}")
+        if args.reset_lr:
+            for g in optimizer.param_groups:
+                g["lr"] = args.lr
+                g["initial_lr"] = args.lr
+            print(f"LR reset to {args.lr}")
+
+    snr_range = (args.snr_min, args.snr_max)
 
     # ── loop ──────────────────────────────────────────────────────────────────
     for epoch in range(start_epoch, args.epochs):
         train_losses, global_step = train_one_epoch(
             model, train_loader, criterion, optimizer,
-            None, cosine_scheduler, scaler, device, global_step, wandb_run,
+            cosine_scheduler, scaler, device, global_step, wandb_run,
+            npz_loader=npz_loader, snr_range=snr_range,
         )
 
         val_metrics = evaluate_model(model, val_loader, device)
@@ -382,13 +547,12 @@ def main() -> None:
             wandb_run.log({"epoch": epoch, **{f"val/{k}": v for k, v in val_metrics.items()}})
 
         # ── checkpoint ────────────────────────────────────────────────────────
-        config = vars(args)
         ckpt_payload = {
             "model_state_dict":     model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "epoch":                epoch,
             "val_loss":             val_pitch_loss,
-            "config":               config,
+            "config":               vars(args),
         }
         ckpt_path = ckpt_dir / f"{epoch:03d}_{val_pitch_loss:.4f}.pt"
         torch.save(ckpt_payload, ckpt_path)

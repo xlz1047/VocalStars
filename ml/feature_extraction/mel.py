@@ -21,9 +21,9 @@ class MelExtractor:
     def __init__(
         self,
         sr: int = 16000,
-        n_mels: int = 128,
-        hop_length: int = 512,
-        win_length: int = 2048,
+        n_mels: int = 40,
+        hop_length: int = 160,
+        win_length: int = 400,
     ) -> None:
         self._transform = T.MelSpectrogram(
             sample_rate=sr,

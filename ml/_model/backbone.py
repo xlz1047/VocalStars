@@ -1,53 +1,148 @@
-"""Shared convolutional backbone that produces frame-level embeddings from mel input."""
+"""NanoPitchEncoder: causal Conv1d + 3-layer GRU backbone for frame-level audio embeddings.
+
+Architecture (adapted from NanoPitch / RNNoise):
+    Input: (B, T, 40) log-mel, time-major
+    Conv1d(40→64, k=3, causal) + tanh   →  conv_out (B, T, 96)  [after conv2]
+    GRU1(96→96), GRU2(96→96), GRU3(96→96)
+    cat([conv_out, g1, g2, g3], dim=-1)  →  (B, T, 384)
+"""
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
-def _dw_sep_block(in_ch: int, out_ch: int, stride: tuple[int, int]) -> nn.Sequential:
-    return nn.Sequential(
-        nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=stride, padding=1, groups=in_ch),
-        nn.Conv2d(in_ch, out_ch, kernel_size=1),
-        nn.BatchNorm2d(out_ch),
-        nn.ReLU(inplace=True),
-    )
+class NanoPitchEncoder(nn.Module):
+    """Causal convolutional + GRU backbone for real-time pitch-aware audio encoding.
 
+    Processes a log-mel spectrogram of shape ``(B, T, n_mels)`` (time-major) and
+    produces frame-level embeddings of shape ``(B, T, 384)`` via two stacked causal
+    Conv1d layers followed by three GRU layers whose outputs are concatenated.
 
-class AudioEncoder(nn.Module):
-    """Depthwise-separable convolutional backbone for log-mel spectrogram embeddings.
+    The causal padding ensures ``output[t]`` depends only on ``input[t-2..t]``, making
+    the model suitable for streaming inference without added latency.
 
-    Maps (batch, 1, 128, T) log-mel tensors to frame-level embeddings of shape
-    (batch, 256, T//4) via four depthwise-separable conv blocks followed by
-    frequency-axis average pooling.
-
-    Blocks 1–2 apply temporal stride 2, reducing T to T//4 across two steps.
-    Blocks 3–4 refine channel depth without further downsampling.
-    The frequency dimension (128) is collapsed to 1 by adaptive average pooling.
+    Args:
+        n_mels: Number of input mel bands. Must match the MelExtractor setting (40).
+        cond_size: Width of the first Conv1d layer (64).
+        gru_size: Hidden size of each GRU layer (96).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, n_mels: int = 40, cond_size: int = 64, gru_size: int = 96) -> None:
         super().__init__()
-        self.blocks = nn.Sequential(
-            _dw_sep_block(1,   32,  stride=(1, 2)),
-            _dw_sep_block(32,  64,  stride=(1, 2)),
-            _dw_sep_block(64,  128, stride=(1, 1)),
-            _dw_sep_block(128, 256, stride=(1, 1)),
-        )
-        self.freq_pool = nn.AdaptiveAvgPool2d((1, None))
+        self.n_mels = n_mels
+        self.cond_size = cond_size
+        self.gru_size = gru_size
 
-        total = sum(p.numel() for p in self.parameters())
-        assert total < 800_000, f"Backbone too large: {total} params"
-        self.param_count = total
+        self.conv1 = nn.Conv1d(n_mels, cond_size, kernel_size=3, padding=0)
+        self.conv2 = nn.Conv1d(cond_size, gru_size, kernel_size=3, padding=0)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.gru1 = nn.GRU(gru_size, gru_size, batch_first=True)
+        self.gru2 = nn.GRU(gru_size, gru_size, batch_first=True)
+        self.gru3 = nn.GRU(gru_size, gru_size, batch_first=True)
+
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Orthogonal init for GRU recurrent weight matrices."""
+        for module in self.modules():
+            if isinstance(module, nn.GRU):
+                for name, param in module.named_parameters():
+                    if "weight_hh" in name:
+                        nn.init.orthogonal_(param)
+
+    def forward(
+        self, x: torch.Tensor, states: list[torch.Tensor] | None = None
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
         """Encode a batch of log-mel spectrograms into frame-level embeddings.
 
         Args:
-            x: Log-mel spectrogram tensor of shape (batch, 1, 128, T).
+            x: Log-mel tensor of shape ``(B, T, n_mels)``.
+            states: Optional list of three GRU hidden states ``[(1,B,96), ...]``.
+                    Pass ``None`` to start from zeros.
 
         Returns:
-            Frame-level embeddings of shape (batch, 256, T//4).
+            Tuple of:
+                features: ``(B, T, 384)`` concatenation of conv_out and all GRU outputs.
+                new_states: List of three updated GRU hidden states.
         """
-        x = self.blocks(x)      # (batch, 256, 128, T//4)
-        x = self.freq_pool(x)   # (batch, 256, 1, T//4)
-        return x.squeeze(2)     # (batch, 256, T//4)
+        B = x.size(0)
+        device = x.device
+
+        if states is None:
+            h1 = torch.zeros(1, B, self.gru_size, device=device)
+            h2 = torch.zeros(1, B, self.gru_size, device=device)
+            h3 = torch.zeros(1, B, self.gru_size, device=device)
+        else:
+            h1, h2, h3 = states
+
+        # Conv block: (B, T, C) → (B, C, T) → causal pad → conv → tanh → back
+        c = x.permute(0, 2, 1)                         # (B, 40, T)
+        c = F.pad(c, (2, 0))                            # (B, 40, T+2)
+        c = torch.tanh(self.conv1(c))                   # (B, 64, T)
+        c = F.pad(c, (2, 0))                            # (B, 64, T+2)
+        c = torch.tanh(self.conv2(c))                   # (B, 96, T)
+        conv_out = c.permute(0, 2, 1)                   # (B, T, 96)
+
+        g1, h1 = self.gru1(conv_out, h1)               # (B, T, 96)
+        g2, h2 = self.gru2(g1, h2)                     # (B, T, 96)
+        g3, h3 = self.gru3(g2, h3)                     # (B, T, 96)
+
+        features = torch.cat([conv_out, g1, g2, g3], dim=-1)  # (B, T, 384)
+        return features, [h1, h2, h3]
+
+    def init_streaming_state(self, batch_size: int = 1, device: str = "cpu") -> dict:
+        """Create zeroed streaming buffers for frame-by-frame inference.
+
+        Args:
+            batch_size: Number of parallel streams.
+            device: Torch device string.
+
+        Returns:
+            Dict with keys ``conv1_buf``, ``conv2_buf``, ``gru_states``.
+        """
+        return {
+            "conv1_buf": torch.zeros(batch_size, 2, self.n_mels, device=device),
+            "conv2_buf": torch.zeros(batch_size, 2, self.cond_size, device=device),
+            "gru_states": [
+                torch.zeros(1, batch_size, self.gru_size, device=device),
+                torch.zeros(1, batch_size, self.gru_size, device=device),
+                torch.zeros(1, batch_size, self.gru_size, device=device),
+            ],
+        }
+
+    @classmethod
+    def from_nanopitch_checkpoint(cls, checkpoint_path: str) -> "NanoPitchEncoder":
+        """Build an encoder and initialise its weights from a NanoPitch ``.pth`` file.
+
+        Transfers conv1, conv2, and all three GRU layers.  The output heads
+        (``dense_pitch``, ``dense_vad``) in the checkpoint are intentionally
+        excluded — those belong to ``PitchHead``.
+
+        Args:
+            checkpoint_path: Path to a NanoPitch checkpoint saved by ``train.py``.
+
+        Returns:
+            Initialised ``NanoPitchEncoder`` instance.
+        """
+        import warnings
+        warnings.warn(
+            "Loading checkpoint via torch.load — only use files from trusted sources.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        encoder = cls()
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        sd = ckpt["state_dict"]
+        backbone_keys = [
+            "conv1.weight", "conv1.bias",
+            "conv2.weight", "conv2.bias",
+            "gru1.weight_ih_l0", "gru1.weight_hh_l0", "gru1.bias_ih_l0", "gru1.bias_hh_l0",
+            "gru2.weight_ih_l0", "gru2.weight_hh_l0", "gru2.bias_ih_l0", "gru2.bias_hh_l0",
+            "gru3.weight_ih_l0", "gru3.weight_hh_l0", "gru3.bias_ih_l0", "gru3.bias_hh_l0",
+        ]
+        filtered = {k: sd[k] for k in backbone_keys if k in sd}
+        result = encoder.load_state_dict(filtered, strict=False)
+        print(f"NanoPitchEncoder: loaded {len(filtered)}/16 backbone tensors. "
+              f"Missing: {result.missing_keys}")
+        return encoder

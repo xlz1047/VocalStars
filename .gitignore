@@ -8,6 +8,8 @@ __pycache__/
 venv/
 /ml/CLAUDE.md
 /ml/data/raw
+/ml_2
+/ml/checkpoints
 
 
 # Node

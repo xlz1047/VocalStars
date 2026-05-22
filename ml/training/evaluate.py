@@ -9,9 +9,9 @@ from torch.utils.data import DataLoader
 from ml._model.voice_coach import VoiceCoachModel
 from ml.training.losses import MultiTaskLoss
 
-# 360 pitch bins: 20-cent spacing starting at C1 (32.7 Hz)
+# 360 pitch bins: 20-cent spacing starting at B0 (31.7 Hz) — matches NanoPitch
 _N_BINS = 360
-_BINS_HZ: torch.Tensor = 32.7 * (
+_BINS_HZ: torch.Tensor = 31.7 * (
     2 ** (torch.arange(_N_BINS, dtype=torch.float32) * 20.0 / 1200.0)
 )
 
@@ -110,10 +110,15 @@ def evaluate_model(
         breath_prob: torch.Tensor  = preds["breath_prob"]
 
         # ── pitch metrics ─────────────────────────────────────────────────────
+        # Mean-pool per-frame logits → clip-level for evaluation against scalar GT
+        if pitch_logits.dim() == 3:
+            pitch_logits_eval = pitch_logits.mean(dim=1)  # (B, 360)
+        else:
+            pitch_logits_eval = pitch_logits
         pitch_bins_gt = _hz_to_pitch_bins(pitch_hz_gt, device)
-        pitch_loss_sum += _LOSS_FN._pitch_loss_fn(pitch_logits, pitch_bins_gt).item()
+        pitch_loss_sum += _LOSS_FN._pitch_loss_fn(pitch_logits_eval, pitch_bins_gt).item()
 
-        pred_hz = _pitch_hz_from_logits(pitch_logits)  # (batch,)
+        pred_hz = _pitch_hz_from_logits(pitch_logits_eval)  # (batch,)
         voiced_mask = pitch_hz_gt > 0
 
         if voiced_mask.any():
