@@ -220,6 +220,29 @@ class UnifiedVocalModel(nn.Module):
 
     # ── Convenience helpers ─────────────────────────────────────────────────
 
+    def encode_clip(
+        self,
+        hcqt: torch.Tensor,
+        vad_features: torch.Tensor,
+        h: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return mean-pooled backbone representation without running task heads.
+
+        Args:
+            hcqt: ``(B, 6, n_bins, T)``
+            vad_features: ``(B, 3, T)``
+            h: optional GRU hidden state.
+
+        Returns:
+            ``(clip_repr, h_new)`` where ``clip_repr`` is ``(B, gru_hidden)``.
+        """
+        B, n_harm, _, T = hcqt.shape
+        x = hcqt.permute(0, 3, 1, 2).reshape(B * T, n_harm, self.n_bins)
+        x = self.harmonic_conv(x).squeeze(1).reshape(B, T, self.n_bins)
+        x = self.input_norm(x)
+        gru_out, h_new = self.gru(x, h)
+        return gru_out.mean(dim=1), h_new
+
     def predict_hz(self, pitch_logits: torch.Tensor) -> torch.Tensor:
         """Argmax decode pitch logits to Hz."""
         return self.bin_hz[pitch_logits.argmax(dim=-1)]

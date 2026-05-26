@@ -1,17 +1,28 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+import type { CoachingResult } from './types'
 
-export async function uploadAudioFile(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
-  const response = await fetch(`${API_BASE_URL}/api/audio/upload`, {
+export async function analyseAudio(
+  blob: Blob,
+  filename: string,
+): Promise<CoachingResult> {
+  const form = new FormData()
+  form.append('file', blob, filename)
+
+  const res = await fetch(`${API_BASE_URL}/api/coaching/analyse`, {
     method: 'POST',
-    body: formData,
+    body: form,
   })
 
-  if (!response.ok) {
-    return { status: 'error' }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      detail = body.detail ?? detail
+    } catch {}
+    throw new Error(detail)
   }
 
-  return response.json()
+  return res.json() as Promise<CoachingResult>
 }

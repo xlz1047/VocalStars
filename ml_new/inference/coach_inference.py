@@ -42,6 +42,9 @@ from ml_new.feature_extraction.vad_features import VADFeatureExtractor
 from ml_new.feature_extraction.breath_labels import derive_breath_labels
 from ml_new.feature_extraction.onset_labels import derive_onset_labels
 from ml_new.models.unified_model import UnifiedVocalModel, TECHNIQUE_VOCAB
+from ml_new.models.acoustic_technique import (
+    AcousticTechniqueClassifier, extract_acoustic_features,
+)
 from ml_new.inference.algorithms import (
     NoteSegment, VoiceQuality, VibratoInfo,
     segment_notes, extract_voice_quality,
@@ -141,6 +144,23 @@ def analyse_recording(
 # Model inference path
 # ---------------------------------------------------------------------------
 
+def _load_acoustic_classifier(
+    ckpt_path: Path, device: torch.device
+) -> AcousticTechniqueClassifier | None:
+    """Load the acoustic technique classifier if its checkpoint exists alongside the backbone."""
+    acoustic_ckpt = ckpt_path.parent / "acoustic_best.pt"
+    if not acoustic_ckpt.exists():
+        # Also check the unified_tech directory
+        acoustic_ckpt = ckpt_path.parent.parent / "unified_tech" / "acoustic_best.pt"
+    if not acoustic_ckpt.exists():
+        return None
+    clf = AcousticTechniqueClassifier().to(device)
+    state = torch.load(str(acoustic_ckpt), map_location=device, weights_only=True)
+    clf.load_state_dict(state.get("classifier_state_dict", state))
+    clf.eval()
+    return clf
+
+
 def _run_model(audio: np.ndarray, ckpt_path: Path, device: str) -> CoachingResult:
     hcqt_ext = HCQTExtractor(sr=SR, hop_length=HOP_LENGTH,
                               n_bins=N_BINS, bins_per_octave=BINS_PER_OCTAVE)
@@ -158,10 +178,12 @@ def _run_model(audio: np.ndarray, ckpt_path: Path, device: str) -> CoachingResul
     model.load_state_dict(ckpt.get("model_state_dict", ckpt))
     model.eval()
 
+    hcqt_t  = torch.from_numpy(hcqt).unsqueeze(0).to(dev)
+    vad_t   = torch.from_numpy(vad_feats).unsqueeze(0).to(dev)
+
     with torch.no_grad():
-        pitch_logits, voiced_prob, breath_prob, onset_prob, tech_logits, _ = model(
-            torch.from_numpy(hcqt).unsqueeze(0).to(dev),
-            torch.from_numpy(vad_feats).unsqueeze(0).to(dev),
+        pitch_logits, voiced_prob, breath_prob, onset_prob, tech_logits_base, _ = model(
+            hcqt_t, vad_t,
         )
 
     bin_hz_np  = model.bin_hz.cpu().numpy()
@@ -174,6 +196,19 @@ def _run_model(audio: np.ndarray, ckpt_path: Path, device: str) -> CoachingResul
     pitch_hz    = np.where(voiced_bool, pitch_hz, 0.0).astype(np.float32)
     breath_bool = breath_np >= BREATH_THRESH
     onset_bool  = onset_np  >= ONSET_THRESH
+
+    # Technique: prefer acoustic classifier when available
+    acoustic_clf = _load_acoustic_classifier(ckpt_path, dev)
+    if acoustic_clf is not None:
+        acou_np  = extract_acoustic_features(vad_feats, pitch_hz, voiced_bool.astype(np.float32))
+        acou_t   = torch.from_numpy(acou_np).unsqueeze(0).to(dev)
+        with torch.no_grad():
+            clip_repr, _ = model.encode_clip(hcqt_t, vad_t)
+            tech_logits  = acoustic_clf(clip_repr, acou_t)
+        source = "acoustic"
+    else:
+        tech_logits = tech_logits_base
+        source = "model"
 
     tech_probs = torch.softmax(tech_logits[0], dim=-1).cpu().numpy()
     tech_idx   = int(np.argmax(tech_probs))
