@@ -169,6 +169,50 @@ def _filter_by_split(
     return [r for r in rows if r["singer_id"] in target]
 
 
+def technique_stratified_split(
+    manifest_csv: str | Path,
+    val_frac: float = 0.10,
+    test_frac: float = 0.10,
+    seed: int = 42,
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Split clips stratified by technique label (not singer).
+
+    Each technique class contributes proportionally to every split, so the
+    validation and test sets are guaranteed to contain examples of every class
+    that appears in training — fixing the problem where singer-level splits
+    leave GTSinger-only techniques unseen at validation.
+
+    Args:
+        manifest_csv: Path to the manifest produced by ``extract_all.py``.
+        val_frac: Fraction of each class's clips to reserve for validation.
+        test_frac: Fraction of each class's clips to reserve for test.
+        seed: Random seed for reproducible shuffling.
+
+    Returns:
+        ``(train_rows, val_rows, test_rows)`` — three lists of manifest dicts.
+    """
+    rows = _load_manifest(manifest_csv)
+    # Group by technique
+    from collections import defaultdict
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        groups[r.get("technique", "")].append(r)
+
+    rng = random.Random(seed)
+    train_rows, val_rows, test_rows = [], [], []
+    for tech, clips in groups.items():
+        clips = list(clips)
+        rng.shuffle(clips)
+        n = len(clips)
+        n_test = max(1, round(n * test_frac))
+        n_val  = max(1, round(n * val_frac))
+        test_rows  += clips[:n_test]
+        val_rows   += clips[n_test: n_test + n_val]
+        train_rows += clips[n_test + n_val:]
+
+    return train_rows, val_rows, test_rows
+
+
 def technique_class_weights(
     manifest_csv: str | Path,
     split: str = "train",
