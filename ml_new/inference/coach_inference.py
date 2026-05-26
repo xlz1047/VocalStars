@@ -1,9 +1,11 @@
 """Coaching inference module for VocalStars.
 
 Takes a raw audio file and returns a CoachingResult with:
-  - Per-frame pitch, voicing, breath and onset arrays
+  - Per-frame pitch, voicing, breath and onset arrays (from the neural model)
   - Clip-level technique classification
-  - Derived metrics (pitch accuracy, drift, phrase lengths, etc.)
+  - Note-level pitch analysis  (signal processing — segment_notes)
+  - Voice quality metrics      (PRAAT via parselmouth — HNR, jitter, shimmer)
+  - Vibrato detection          (F0 autocorrelation — per sustained note)
   - Human-readable score, summary, issues and exercises
 
 Usage
@@ -12,9 +14,6 @@ Usage
     result = analyse_recording("my_singing.wav",
                                checkpoint="ml_new/checkpoints/unified/best.pt")
     print(result.summary)
-    for issue, ex in zip(result.issues, result.exercises):
-        print(f"  Issue: {issue}")
-        print(f"  Try:   {ex}")
 
 CLI
 ---
@@ -28,9 +27,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import torch
@@ -44,22 +42,25 @@ from ml_new.feature_extraction.vad_features import VADFeatureExtractor
 from ml_new.feature_extraction.breath_labels import derive_breath_labels
 from ml_new.feature_extraction.onset_labels import derive_onset_labels
 from ml_new.models.unified_model import UnifiedVocalModel, TECHNIQUE_VOCAB
+from ml_new.inference.algorithms import (
+    NoteSegment, VoiceQuality, VibratoInfo,
+    segment_notes, extract_voice_quality,
+    flat_notes_summary, vibrato_summary,
+)
 
-SR = 16_000
+SR         = 16_000
 HOP_LENGTH = 160
-HOP_S: float = HOP_LENGTH / SR          # 0.01 s per frame
-N_BINS = 180
+HOP_S: float = HOP_LENGTH / SR   # 0.01 s per frame
+N_BINS        = 180
 BINS_PER_OCTAVE = 36
-FMIN = UnifiedVocalModel.FMIN           # 32.7 Hz (C1)
+FMIN = UnifiedVocalModel.FMIN    # 32.7 Hz (C1)
 
 VOICED_THRESH = 0.50
 BREATH_THRESH = 0.35
 ONSET_THRESH  = 0.30
 
-# Phrases shorter than this are ignored (fragments / micro-pauses)
-MIN_PHRASE_S = 0.5
-# Unvoiced gap must be this long to split a phrase
-MIN_SILENCE_S = 0.10
+MIN_PHRASE_S  = 0.5   # phrases shorter than this are ignored
+MIN_SILENCE_S = 0.10  # unvoiced gap needed to split phrases
 
 
 # ---------------------------------------------------------------------------
@@ -70,30 +71,35 @@ MIN_SILENCE_S = 0.10
 class CoachingResult:
     """Full coaching analysis for one recorded clip."""
 
-    # Raw per-frame arrays (10 ms / frame resolution)
+    # ── Raw per-frame arrays (10 ms / frame) ──────────────────────────────
     pitch_hz:      np.ndarray  # float32, 0.0 = unvoiced
     voiced:        np.ndarray  # bool
     breath_frames: np.ndarray  # bool
     onset_frames:  np.ndarray  # bool
     hop_s:         float       # seconds per frame (always 0.01)
 
-    # Clip-level technique
+    # ── Clip-level technique (neural model) ───────────────────────────────
     technique:            str
     technique_confidence: float
     all_technique_scores: dict[str, float]
 
-    # Derived coaching metrics
-    pitch_accuracy:    float       # fraction of voiced frames within 50 ¢ of nearest semitone
-    pitch_drift_cents: float       # median signed cents offset (+ = sharp, − = flat)
-    phrase_lengths_s:  list[float] # seconds per phrase
+    # ── Derived coaching metrics ──────────────────────────────────────────
+    pitch_accuracy:    float        # fraction of voiced frames within 50 ¢ of nearest semitone
+    pitch_drift_cents: float        # median signed cents offset (+ = sharp, − = flat)
+    phrase_lengths_s:  list[float]  # seconds per phrase
     breath_count:      int
     onset_count:       int
-    onset_clarity:     float       # mean onset probability at detected onset frames
+    onset_clarity:     float        # mean onset probability at detected onset peaks
 
-    # Human-readable coaching output
+    # ── Algorithmic enrichments ───────────────────────────────────────────
+    notes:         list[NoteSegment]   # individual note events with per-note pitch info
+    voice_quality: VoiceQuality | None # HNR, jitter, shimmer (None if parselmouth unavailable)
+    vibrato_stats: dict                # from vibrato_summary()
+
+    # ── Human-readable coaching output ───────────────────────────────────
     score:     int         # 0–100 overall beginner score
     summary:   str         # one-sentence overview
-    issues:    list[str]   # up to 3 detected problems
+    issues:    list[str]   # up to 4 specific problems detected
     exercises: list[str]   # one targeted exercise per issue
 
 
@@ -104,23 +110,21 @@ class CoachingResult:
 def analyse_recording(
     audio_path: str | Path,
     checkpoint: str | Path | None = None,
-    device: str = "cpu",
+    device:     str = "cpu",
 ) -> CoachingResult:
     """Analyse a singing recording and return coaching feedback.
 
     Args:
         audio_path: Path to any audio file supported by librosa (.wav, .mp3, …).
         checkpoint: Path to a trained ``UnifiedVocalModel`` ``.pt`` checkpoint.
-            When ``None`` or the file is missing, falls back to librosa.pyin
-            for pitch and heuristic breath/onset labelling.
+            Falls back to librosa.pyin + heuristics when ``None`` or missing.
         device: PyTorch device string (``"cpu"``, ``"mps"``, ``"cuda"``).
 
     Returns:
-        :class:`CoachingResult` populated with raw arrays, derived metrics and
+        :class:`CoachingResult` with raw arrays, algorithmic metrics, and
         human-readable coaching advice.
     """
     import librosa
-
     audio, _ = librosa.load(str(audio_path), sr=SR, mono=True)
 
     ckpt_path = Path(checkpoint) if checkpoint else None
@@ -130,106 +134,87 @@ def analyse_recording(
         result = _run_model(audio, ckpt_path, device)
     else:
         result = _run_fallback(audio)
-
     return result
 
 
 # ---------------------------------------------------------------------------
-# Model-based inference path
+# Model inference path
 # ---------------------------------------------------------------------------
 
 def _run_model(audio: np.ndarray, ckpt_path: Path, device: str) -> CoachingResult:
-    hcqt_ext = HCQTExtractor(
-        sr=SR, hop_length=HOP_LENGTH,
-        n_bins=N_BINS, bins_per_octave=BINS_PER_OCTAVE,
-    )
-    vad_ext = VADFeatureExtractor(sr=SR, hop_length=HOP_LENGTH)
+    hcqt_ext = HCQTExtractor(sr=SR, hop_length=HOP_LENGTH,
+                              n_bins=N_BINS, bins_per_octave=BINS_PER_OCTAVE)
+    vad_ext  = VADFeatureExtractor(sr=SR, hop_length=HOP_LENGTH)
 
-    hcqt      = hcqt_ext.compute(audio)       # (6, 180, T)
-    vad_feats = vad_ext.compute(audio)         # (3, T)
-
+    hcqt      = hcqt_ext.compute(audio)
+    vad_feats = vad_ext.compute(audio)
     T = min(hcqt.shape[2], vad_feats.shape[1])
     hcqt      = hcqt[:, :, :T]
     vad_feats = vad_feats[:, :T]
 
-    dev = torch.device(device)
+    dev   = torch.device(device)
     model = UnifiedVocalModel().to(dev)
-    ckpt = torch.load(str(ckpt_path), map_location=dev, weights_only=True)
-    state = ckpt.get("model_state_dict", ckpt)
-    model.load_state_dict(state)
+    ckpt  = torch.load(str(ckpt_path), map_location=dev, weights_only=True)
+    model.load_state_dict(ckpt.get("model_state_dict", ckpt))
     model.eval()
 
-    hcqt_t    = torch.from_numpy(hcqt).unsqueeze(0).to(dev)      # (1,6,180,T)
-    vad_t     = torch.from_numpy(vad_feats).unsqueeze(0).to(dev)  # (1,3,T)
-
     with torch.no_grad():
-        pitch_logits, voiced_prob, breath_prob, onset_prob, tech_logits, _ = \
-            model(hcqt_t, vad_t)
+        pitch_logits, voiced_prob, breath_prob, onset_prob, tech_logits, _ = model(
+            torch.from_numpy(hcqt).unsqueeze(0).to(dev),
+            torch.from_numpy(vad_feats).unsqueeze(0).to(dev),
+        )
 
-    # Pitch: argmax decode to Hz
-    pitch_bins = pitch_logits[0].argmax(dim=-1).cpu().numpy()  # (T,)
     bin_hz_np  = model.bin_hz.cpu().numpy()
-    pitch_hz   = bin_hz_np[pitch_bins].astype(np.float32)
-
+    pitch_hz   = bin_hz_np[pitch_logits[0].argmax(dim=-1).cpu().numpy()].astype(np.float32)
     voiced_np  = voiced_prob[0].cpu().numpy()
     breath_np  = breath_prob[0].cpu().numpy()
     onset_np   = onset_prob[0].cpu().numpy()
 
     voiced_bool = voiced_np >= VOICED_THRESH
-    # Zero out pitch where not voiced
-    pitch_hz = np.where(voiced_bool, pitch_hz, 0.0).astype(np.float32)
-
+    pitch_hz    = np.where(voiced_bool, pitch_hz, 0.0).astype(np.float32)
     breath_bool = breath_np >= BREATH_THRESH
     onset_bool  = onset_np  >= ONSET_THRESH
 
-    # Technique
-    tech_probs_np = torch.softmax(tech_logits[0], dim=-1).cpu().numpy()
-    tech_idx      = int(np.argmax(tech_probs_np))
-    technique     = TECHNIQUE_VOCAB[tech_idx]
-    tech_conf     = float(tech_probs_np[tech_idx])
-    all_scores    = {t: float(tech_probs_np[i]) for i, t in enumerate(TECHNIQUE_VOCAB)}
+    tech_probs = torch.softmax(tech_logits[0], dim=-1).cpu().numpy()
+    tech_idx   = int(np.argmax(tech_probs))
 
     return _build_result(
-        pitch_hz, voiced_bool, breath_bool, onset_bool,
+        audio, pitch_hz, voiced_bool, breath_bool, onset_bool,
         onset_raw_prob=onset_np,
-        technique=technique,
-        technique_confidence=tech_conf,
-        all_technique_scores=all_scores,
+        technique=TECHNIQUE_VOCAB[tech_idx],
+        technique_confidence=float(tech_probs[tech_idx]),
+        all_technique_scores={t: float(tech_probs[i]) for i, t in enumerate(TECHNIQUE_VOCAB)},
     )
 
 
 # ---------------------------------------------------------------------------
-# Fallback path (no checkpoint — uses librosa.pyin)
+# Fallback path (librosa.pyin)
 # ---------------------------------------------------------------------------
 
 def _run_fallback(audio: np.ndarray) -> CoachingResult:
     import librosa
 
     vad_ext   = VADFeatureExtractor(sr=SR, hop_length=HOP_LENGTH)
-    vad_feats = vad_ext.compute(audio)         # (3, T)
+    vad_feats = vad_ext.compute(audio)
 
-    f0_hz, voiced_flag, _ = librosa.pyin(
+    f0_hz, _, _ = librosa.pyin(
         audio, fmin=float(FMIN), fmax=2100.0,
-        sr=SR, hop_length=HOP_LENGTH,
-        fill_na=0.0,
+        sr=SR, hop_length=HOP_LENGTH, fill_na=0.0,
     )
 
-    T = min(vad_feats.shape[1], len(f0_hz))
+    T         = min(vad_feats.shape[1], len(f0_hz))
     f0_hz     = f0_hz[:T].astype(np.float32)
     vad_feats = vad_feats[:, :T]
-    voiced_bool = (f0_hz > 0)
+    voiced_bool = f0_hz > 0
 
-    vad_label  = voiced_bool.astype(np.float32)
-    breath_arr = derive_breath_labels(vad_label, vad_feats)
+    breath_arr = derive_breath_labels(voiced_bool.astype(np.float32), vad_feats)
     onset_arr  = derive_onset_labels(f0_hz)
 
-    breath_bool  = breath_arr > 0.5
-    onset_bool   = onset_arr  > 0.5
-    onset_raw    = onset_arr  # 0/1 heuristic labels
-
     return _build_result(
-        f0_hz, voiced_bool, breath_bool, onset_bool,
-        onset_raw_prob=onset_raw,
+        audio, f0_hz, voiced_bool,
+        breath_frames=breath_arr > 0.5,
+        onset_frames=onset_arr > 0.5,
+        onset_raw_prob=onset_arr,
         technique="unknown",
         technique_confidence=0.0,
         all_technique_scores={t: 0.0 for t in TECHNIQUE_VOCAB},
@@ -241,6 +226,7 @@ def _run_fallback(audio: np.ndarray) -> CoachingResult:
 # ---------------------------------------------------------------------------
 
 def _build_result(
+    audio:          np.ndarray,
     pitch_hz:       np.ndarray,
     voiced:         np.ndarray,
     breath_frames:  np.ndarray,
@@ -250,24 +236,29 @@ def _build_result(
     technique_confidence: float,
     all_technique_scores: dict[str, float],
 ) -> CoachingResult:
+    # ── Frame-level metrics ────────────────────────────────────────────────
     pitch_acc   = _pitch_accuracy(pitch_hz, voiced)
     drift_cents = _pitch_drift_cents(pitch_hz, voiced)
     phrases     = _phrase_lengths_s(voiced, HOP_S)
     breath_cnt  = int(np.diff(breath_frames.astype(np.int8), prepend=0).clip(min=0).sum())
-    # Count rising-edge events, not raw frames (consecutive onset frames = 1 note attack)
     onset_cnt   = int(np.diff(onset_frames.astype(np.int8), prepend=0).clip(min=0).sum())
     onset_clar  = _onset_clarity(onset_raw_prob, onset_frames)
 
+    # ── Algorithmic enrichments ────────────────────────────────────────────
+    notes      = segment_notes(pitch_hz, HOP_S)
+    vq         = extract_voice_quality(audio, SR)
+    vib_stats  = vibrato_summary(notes)
+
+    # ── Coaching text ──────────────────────────────────────────────────────
     score, summary, issues, exercises = _build_coaching_text(
-        pitch_acc, drift_cents, phrases, onset_clar,
-        onset_cnt, technique, technique_confidence,
+        pitch_acc, drift_cents, phrases, onset_clar, onset_cnt,
+        technique, technique_confidence,
+        notes=notes, voice_quality=vq, vib_stats=vib_stats,
     )
 
     return CoachingResult(
-        pitch_hz=pitch_hz,
-        voiced=voiced,
-        breath_frames=breath_frames,
-        onset_frames=onset_frames,
+        pitch_hz=pitch_hz, voiced=voiced,
+        breath_frames=breath_frames, onset_frames=onset_frames,
         hop_s=HOP_S,
         technique=technique,
         technique_confidence=technique_confidence,
@@ -278,10 +269,11 @@ def _build_result(
         breath_count=breath_cnt,
         onset_count=onset_cnt,
         onset_clarity=onset_clar,
-        score=score,
-        summary=summary,
-        issues=issues,
-        exercises=exercises,
+        notes=notes,
+        voice_quality=vq,
+        vibrato_stats=vib_stats,
+        score=score, summary=summary,
+        issues=issues, exercises=exercises,
     )
 
 
@@ -296,9 +288,8 @@ def _pitch_accuracy(pitch_hz: np.ndarray, voiced: np.ndarray) -> float:
     f = f[f > 0]
     if len(f) == 0:
         return 0.0
-    # Nearest equal-temperament semitone (A4 = 440 Hz reference)
     nearest = 440.0 * 2.0 ** (np.round(12.0 * np.log2(f / 440.0)) / 12.0)
-    cents = 1200.0 * np.log2(f / nearest.clip(min=1e-6))
+    cents   = 1200.0 * np.log2(f / nearest.clip(min=1e-6))
     return float((np.abs(cents) < 50.0).mean())
 
 
@@ -310,23 +301,21 @@ def _pitch_drift_cents(pitch_hz: np.ndarray, voiced: np.ndarray) -> float:
     if len(f) == 0:
         return 0.0
     nearest = 440.0 * 2.0 ** (np.round(12.0 * np.log2(f / 440.0)) / 12.0)
-    cents = 1200.0 * np.log2(f / nearest.clip(min=1e-6))
+    cents   = 1200.0 * np.log2(f / nearest.clip(min=1e-6))
     return float(np.median(cents))
 
 
 def _phrase_lengths_s(voiced: np.ndarray, hop_s: float) -> list[float]:
     min_silence_frames = max(1, round(MIN_SILENCE_S / hop_s))
     min_phrase_frames  = max(1, round(MIN_PHRASE_S  / hop_s))
-
     phrases = []
     v = voiced.astype(np.int8)
-    i = 0
-    n = len(v)
+    i, n = 0, len(v)
     while i < n:
         if not v[i]:
             i += 1
             continue
-        start = i
+        start       = i
         silence_run = 0
         while i < n:
             if v[i]:
@@ -337,22 +326,19 @@ def _phrase_lengths_s(voiced: np.ndarray, hop_s: float) -> list[float]:
                     break
             i += 1
         end = i - silence_run
-        length_frames = end - start
-        if length_frames >= min_phrase_frames:
-            phrases.append(length_frames * hop_s)
-
+        if (end - start) >= min_phrase_frames:
+            phrases.append((end - start) * hop_s)
     return phrases
 
 
 def _onset_clarity(onset_prob: np.ndarray, onset_frames: np.ndarray) -> float:
-    """Mean onset probability at detected onset peaks (global mean if none)."""
     if onset_frames.any():
         return float(onset_prob[onset_frames].mean())
     return float(onset_prob.mean())
 
 
 # ---------------------------------------------------------------------------
-# Coaching text generation
+# Coaching text — rule-based, enriched by algorithmic signals
 # ---------------------------------------------------------------------------
 
 def _build_coaching_text(
@@ -363,130 +349,212 @@ def _build_coaching_text(
     onset_count:       int,
     technique:         str,
     technique_confidence: float,
+    notes:             list[NoteSegment],
+    voice_quality:     VoiceQuality | None,
+    vib_stats:         dict,
 ) -> tuple[int, str, list[str], list[str]]:
     issues:    list[str] = []
     exercises: list[str] = []
 
-    # ── Pitch accuracy ────────────────────────────────────────────────────
+    mean_phrase = float(np.mean(phrase_lengths_s)) if phrase_lengths_s else 0.0
+
+    # ── 1. Pitch accuracy ─────────────────────────────────────────────────
     if pitch_accuracy < 0.60:
         issues.append(
             f"Pitch needs significant work — only {pitch_accuracy:.0%} of notes "
-            "were in tune. Many notes are off-key."
+            "were in tune."
         )
         exercises.append(
-            "Sing very slowly to a drone note at A4 (440 Hz). Match the pitch "
-            "and hold it for 4 seconds before moving to the next note."
+            "Sing slowly to a drone note at A4 (440 Hz). Match the pitch "
+            "and hold it for 4 s before moving on."
         )
     elif pitch_accuracy < 0.80:
         issues.append(
-            f"Pitch accuracy is {pitch_accuracy:.0%} — focus on landing the "
-            "centre of each note more consistently."
+            f"Pitch accuracy is {pitch_accuracy:.0%} — work on landing "
+            "the centre of each note."
         )
         exercises.append(
-            "Practice long tones: sustain a single note for 4 seconds while "
-            "listening carefully. Record yourself and compare to a reference pitch."
+            "Long-tone practice: sustain one note for 4 s, record yourself, "
+            "compare to a reference pitch app."
         )
 
-    # ── Pitch drift ───────────────────────────────────────────────────────
-    if pitch_drift_cents < -20:
+    # ── 2. Per-note pitch problems (from note segmentation) ───────────────
+    problem_notes = flat_notes_summary(notes, threshold_cents=30.0)
+    if problem_notes:
+        note_list = ", ".join(problem_notes[:3])
+        direction = "flat" if any("flat" in s for s in problem_notes) else "sharp"
         issues.append(
-            f"You tend to sing flat (avg {abs(pitch_drift_cents):.0f} ¢ below pitch). "
-            "Flat singing can sound dull or sad unintentionally."
+            f"Specific notes are consistently off: {note_list}."
+        )
+        if direction == "flat":
+            exercises.append(
+                "For those notes, imagine lifting the back of your tongue slightly "
+                "and 'thinking' the pitch higher before you sing it."
+            )
+        else:
+            exercises.append(
+                "For those notes, relax the jaw and let the breath drop lower in "
+                "the body before onset to prevent over-shooting."
+            )
+
+    # ── 3. Pitch drift ────────────────────────────────────────────────────
+    if pitch_drift_cents < -25 and not any("flat" in i for i in issues):
+        issues.append(
+            f"Overall tendency to sing flat ({pitch_drift_cents:+.0f} ¢ median). "
+            "Flat singing sounds unintentionally sad or unclear."
         )
         exercises.append(
-            "Raise your soft palate and think 'bright' as you sustain notes. "
-            "Imagining the sound coming from behind your eyes can help lift pitch."
+            "Raise your soft palate ('bright' vowels) and think the pitch "
+            "slightly higher than it feels comfortable."
         )
-    elif pitch_drift_cents > 20:
+    elif pitch_drift_cents > 25 and not any("sharp" in i for i in issues):
         issues.append(
-            f"You tend to sing sharp (avg {pitch_drift_cents:.0f} ¢ above pitch). "
-            "Over-pushing air often causes sharpness."
+            f"Overall tendency to sing sharp ({pitch_drift_cents:+.0f} ¢ median). "
+            "Too much air pressure often causes sharpness."
         )
         exercises.append(
             "Relax jaw tension and take deeper, lower breaths. "
-            "Let the sound drop into the chest rather than pushing up."
+            "Let the sound settle rather than pushing it out."
         )
 
-    # ── Breath support / phrase length ────────────────────────────────────
-    mean_phrase = float(np.mean(phrase_lengths_s)) if phrase_lengths_s else 0.0
+    # ── 4. Voice quality (parselmouth) ────────────────────────────────────
+    if voice_quality is not None:
+        if voice_quality.breathiness == "breathy":
+            issues.append(
+                f"Breathy voice quality detected (HNR {voice_quality.hnr_db:.0f} dB — "
+                "air escaping before the cords fully close)."
+            )
+            exercises.append(
+                "Hum 'mmm' with lips lightly closed to build cord closure and "
+                "forward resonance. Gradually open to 'mah' while keeping the buzz."
+            )
+        elif voice_quality.breathiness == "mild" and voice_quality.hnr_db < 15:
+            issues.append(
+                f"Slightly airy tone (HNR {voice_quality.hnr_db:.0f} dB). "
+                "More cord engagement will give a clearer, more projected sound."
+            )
+            exercises.append(
+                "Try 'staccato' vowel exercises (short, clear 'ha-ha-ha') to "
+                "encourage full cord closure at each attack."
+            )
+
+        if voice_quality.is_unstable:
+            jit = voice_quality.jitter_pct
+            shi = voice_quality.shimmer_pct
+            issues.append(
+                f"Vocal instability detected (jitter {jit:.1f}%, shimmer {shi:.1f}%). "
+                "This can indicate tension, fatigue, or insufficient warm-up."
+            )
+            exercises.append(
+                "Rest the voice for 20 min, hydrate well, then warm up with "
+                "gentle lip trills before attempting full-voice singing."
+            )
+
+    # ── 5. Breath support / phrase length ─────────────────────────────────
     if mean_phrase < 3.5:
         issues.append(
-            f"Phrases average only {mean_phrase:.1f} s — you may be running out "
-            "of breath. Short phrases limit musical expression."
+            f"Phrases average only {mean_phrase:.1f} s — breath runs out too quickly."
         )
         exercises.append(
-            "Practice diaphragmatic breathing: inhale silently for 4 counts, "
-            "then sustain 'sss' for 8 counts. Repeat daily to build breath capacity."
+            "Diaphragmatic breathing: inhale silently for 4 counts, then sustain "
+            "'sss' for 8 counts. Build up to 12 counts over a week."
         )
     elif mean_phrase < 5.0:
         issues.append(
             f"Phrase length averages {mean_phrase:.1f} s. "
-            "Try extending phrases to 5–6 s for better musical flow."
+            "Aim for 5–6 s to improve musical line."
         )
         exercises.append(
-            "Take a deeper breath before each phrase and see how long you can "
-            "sustain 'aaah' on a comfortable note. Aim for 6 s before inhaling."
+            "Before each phrase take a fuller breath and see how long you can "
+            "sustain 'aaah' on a comfortable note. Target: 6 s without strain."
         )
 
-    # ── Onset clarity ─────────────────────────────────────────────────────
-    if onset_clarity < 0.40 and onset_count > 0:
+    # ── 6. Vibrato ────────────────────────────────────────────────────────
+    n_long = vib_stats.get("n_long_notes", 0)
+    n_vib  = vib_stats.get("n_vibrato_notes", 0)
+    rate   = vib_stats.get("mean_rate_hz", 0.0)
+    depth  = vib_stats.get("mean_depth_cents", 0.0)
+
+    if n_long >= 2 and n_vib == 0:
         issues.append(
-            f"{onset_count} note attacks detected but onset clarity is low — "
-            "note starts sound hesitant or under-powered."
+            f"{n_long} sustained note(s) detected but no vibrato found. "
+            "Adding vibrato enriches long notes and shows vocal control."
         )
         exercises.append(
-            "Practice clean 'ha' onsets: start each note with a gentle aspirate. "
-            "Place your hand on your stomach and feel it push outward at each 'ha'."
+            "Practice a gentle hand-on-chest pulse while sustaining a note — "
+            "this helps initiate the natural 5–6 Hz oscillation of healthy vibrato."
+        )
+    elif n_vib > 0 and (rate < 4.5 or rate > 7.5):
+        issues.append(
+            f"Vibrato detected but rate is {rate:.1f} Hz "
+            f"(healthy range: 5–7 Hz). {'Too slow' if rate < 4.5 else 'Too fast'} "
+            "vibrato sounds unnatural."
+        )
+        exercises.append(
+            "Practise sustaining notes with a metronome set to 6 Hz (360 bpm "
+            "subdivisions) and aim to match your oscillation to that pulse."
+        )
+    elif n_vib > 0 and depth < 25:
+        issues.append(
+            f"Vibrato is present but very shallow ({depth:.0f} ¢ depth). "
+            "Aim for 30–60 ¢ for a warm, full sound."
+        )
+        exercises.append(
+            "Allow more jaw relaxation on long notes and let the air stream "
+            "have natural pulse — don't 'lock' the sound."
         )
 
-    # ── Technique-specific advice ─────────────────────────────────────────
-    if technique == "breathy" and technique_confidence > 0.50:
+    # ── 7. Onset clarity ──────────────────────────────────────────────────
+    if onset_clarity < 0.38 and onset_count > 2:
         issues.append(
-            f"Breathy tone detected ({technique_confidence:.0%} confidence). "
-            "Air is escaping before the vocal cords fully close."
+            f"{onset_count} note attack(s) sound hesitant or under-powered "
+            f"(onset clarity {onset_clarity:.2f})."
         )
         exercises.append(
-            "Hum on 'mmm' with lips lightly closed to build forward resonance "
-            "and improve cord closure. Gradually open to 'mah' while keeping the buzz."
-        )
-    elif technique == "vocal_fry" and technique_confidence > 0.50:
-        issues.append(
-            f"Vocal fry detected ({technique_confidence:.0%} confidence). "
-            "Creak at note starts or ends strains the voice over time."
-        )
-        exercises.append(
-            "Warm up gently with lip trills (brrr) before singing. "
-            "Stay hydrated and avoid fry deliberately — start notes on a clean vowel."
+            "Practice 'ha' onsets: place a hand on your belly and feel it push "
+            "outward at each attack. Sharp, confident starts."
         )
 
-    # Cap at 3 issues
-    issues    = issues[:3]
-    exercises = exercises[:3]
+    # Cap at 4 issues (prioritise pitch, voice quality, breath, vibrato)
+    issues    = issues[:4]
+    exercises = exercises[:4]
 
     # ── Score ─────────────────────────────────────────────────────────────
     phrase_support = min(1.0, mean_phrase / 6.0) if phrase_lengths_s else 0.5
-    score = round(pitch_accuracy * 60 + min(onset_clarity, 1.0) * 20 + phrase_support * 20)
+    vq_score = 1.0
+    if voice_quality is not None:
+        vq_score = min(1.0, max(0.0, (voice_quality.hnr_db - 5.0) / 20.0))
+
+    score = round(
+        pitch_accuracy * 50
+        + vq_score      * 20
+        + min(onset_clarity, 1.0) * 15
+        + phrase_support * 15
+    )
     score = max(0, min(100, score))
 
     # ── Summary ───────────────────────────────────────────────────────────
     if score >= 80:
+        vib_note = f" Vibrato detected on {n_vib} note(s)." if n_vib > 0 else ""
         summary = (
-            f"Excellent singing! Pitch is {pitch_accuracy:.0%} accurate with good breath support. "
-            "Small refinements will take you to the next level."
+            f"Excellent singing! Pitch {pitch_accuracy:.0%} accurate, "
+            f"voice quality {"clear" if (voice_quality and voice_quality.breathiness == "clear") else "good"}."
+            + vib_note
         )
     elif score >= 65:
         summary = (
-            f"Good foundation — pitch accuracy is {pitch_accuracy:.0%}. "
-            "Focusing on the issues below will make a clear difference."
+            f"Good foundation — pitch {pitch_accuracy:.0%}, "
+            f"avg phrase {mean_phrase:.1f} s. "
+            "The issues below will make a clear difference."
         )
     elif score >= 50:
         summary = (
-            f"Solid effort with a score of {score}/100. "
-            "Work on pitch and breath support as priorities."
+            f"Solid effort. Pitch {pitch_accuracy:.0%}, score {score}/100. "
+            "Pitch accuracy and breath support are your priorities."
         )
     else:
         summary = (
-            f"Keep practising! Score: {score}/100. "
+            f"Keep practising! Score {score}/100. "
             "Focus on one issue at a time — start with staying in tune."
         )
 
@@ -494,48 +562,62 @@ def _build_coaching_text(
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# CLI display
 # ---------------------------------------------------------------------------
 
 def _print_report(result: CoachingResult, *, use_colour: bool = True) -> None:
-    """Print a human-readable coaching report."""
-    RESET  = "\033[0m"  if use_colour else ""
-    BOLD   = "\033[1m"  if use_colour else ""
-    GREEN  = "\033[32m" if use_colour else ""
-    YELLOW = "\033[33m" if use_colour else ""
-    RED    = "\033[31m" if use_colour else ""
-    CYAN   = "\033[36m" if use_colour else ""
+    R  = "\033[0m"  if use_colour else ""
+    B  = "\033[1m"  if use_colour else ""
+    G  = "\033[32m" if use_colour else ""
+    Y  = "\033[33m" if use_colour else ""
+    RE = "\033[31m" if use_colour else ""
+    C  = "\033[36m" if use_colour else ""
 
-    def score_colour(s: int) -> str:
-        if s >= 80: return GREEN
-        if s >= 60: return YELLOW
-        return RED
+    sc_col = G if result.score >= 80 else (Y if result.score >= 60 else RE)
 
-    dur_s = len(result.pitch_hz) * result.hop_s
-    print()
-    print(f"{BOLD}{'━' * 56}{RESET}")
-    print(f"{BOLD}  VocalStars Coaching Report{RESET}")
-    print(f"{'━' * 56}")
-    print(f"  Duration     : {dur_s:.1f} s   |  {len(result.pitch_hz)} frames @ 10 ms")
-    print(f"  Technique    : {result.technique}  ({result.technique_confidence:.0%} confident)")
-    print(f"  Pitch acc    : {result.pitch_accuracy:.1%}"
-          f"  |  Drift: {result.pitch_drift_cents:+.0f} ¢")
+    dur_s      = len(result.pitch_hz) * result.hop_s
     mean_phrase = float(np.mean(result.phrase_lengths_s)) if result.phrase_lengths_s else 0.0
-    print(f"  Phrases      : {len(result.phrase_lengths_s)} phrase(s), "
-          f"avg {mean_phrase:.1f} s")
-    print(f"  Breaths      : {result.breath_count}")
-    print(f"  Onsets       : {result.onset_count}  |  Clarity: {result.onset_clarity:.2f}")
-    print(f"{'━' * 56}")
-    sc = result.score
-    print(f"  {BOLD}Score: {score_colour(sc)}{sc}/100{RESET}")
+    vq         = result.voice_quality
+    vs         = result.vibrato_stats
+
+    print()
+    print(f"{B}{'━' * 60}{R}")
+    print(f"{B}  VocalStars Coaching Report{R}")
+    print(f"{'━' * 60}")
+    print(f"  Duration      : {dur_s:.1f} s  ({len(result.pitch_hz)} frames @ 10 ms)")
+    print(f"  Technique     : {result.technique}  ({result.technique_confidence:.0%} confident)")
+    print(f"  Pitch acc     : {result.pitch_accuracy:.1%}  |  Drift: {result.pitch_drift_cents:+.0f} ¢")
+    print(f"  Notes detected: {len(result.notes)}"
+          f"  |  Phrases: {len(result.phrase_lengths_s)} @ avg {mean_phrase:.1f} s")
+    print(f"  Breaths       : {result.breath_count}"
+          f"  |  Onset clarity: {result.onset_clarity:.2f}")
+
+    if vq is not None:
+        print(f"  Voice quality : HNR {vq.hnr_db:.1f} dB"
+              f"  jitter {vq.jitter_pct:.1f}%"
+              f"  shimmer {vq.shimmer_pct:.1f}%"
+              f"  → {vq.breathiness}")
+
+    n_vib = vs.get("n_vibrato_notes", 0)
+    n_long = vs.get("n_long_notes", 0)
+    if n_long > 0:
+        vib_txt = (f"{n_vib}/{n_long} notes with vibrato "
+                   f"({vs['mean_rate_hz']:.1f} Hz, {vs['mean_depth_cents']:.0f} ¢)"
+                   if n_vib > 0 else f"no vibrato on {n_long} long note(s)")
+        print(f"  Vibrato       : {vib_txt}")
+
+    print(f"{'━' * 60}")
+    print(f"  {B}Score: {sc_col}{result.score}/100{R}")
     print(f"  {result.summary}")
+
     if result.issues:
         print()
-        print(f"{BOLD}  Issues & Exercises:{RESET}")
+        print(f"{B}  Issues & Exercises:{R}")
         for i, (issue, ex) in enumerate(zip(result.issues, result.exercises), 1):
-            print(f"\n  {CYAN}{i}. {issue}{RESET}")
-            print(f"     {YELLOW}→ {ex}{RESET}")
-    print(f"\n{'━' * 56}\n")
+            print(f"\n  {C}{i}. {issue}{R}")
+            print(f"     {Y}→ {ex}{R}")
+
+    print(f"\n{'━' * 60}\n")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -544,19 +626,12 @@ def main(argv: list[str] | None = None) -> None:
         description="Analyse a singing recording and print coaching feedback.",
     )
     parser.add_argument("audio", help="Path to the audio file (.wav, .mp3, …)")
-    parser.add_argument(
-        "--checkpoint", "-c", default=None,
-        help="Path to trained UnifiedVocalModel .pt checkpoint. "
-             "Defaults to ml_new/checkpoints/unified/best.pt",
-    )
-    parser.add_argument(
-        "--device", "-d", default="cpu",
-        help="PyTorch device: cpu | mps | cuda (default: cpu)",
-    )
-    parser.add_argument(
-        "--json", "-j", action="store_true",
-        help="Output raw JSON instead of formatted report",
-    )
+    parser.add_argument("--checkpoint", "-c", default=None,
+                        help="Path to .pt checkpoint (default: ml_new/checkpoints/unified/best.pt)")
+    parser.add_argument("--device", "-d", default="cpu",
+                        help="cpu | mps | cuda")
+    parser.add_argument("--json", "-j", action="store_true",
+                        help="Output raw JSON instead of formatted report")
     args = parser.parse_args(argv)
 
     ckpt = args.checkpoint
@@ -569,11 +644,21 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.json:
         out = asdict(result)
-        # Convert numpy arrays to lists for JSON serialisation
-        for k, v in out.items():
+        def _serialise(v):
             if isinstance(v, np.ndarray):
-                out[k] = v.tolist()
-        print(json.dumps(out, indent=2))
+                return v.tolist()
+            if isinstance(v, np.generic):
+                return v.item()
+            return v
+        # Recursively convert numpy types
+        import copy
+        def _clean(obj):
+            if isinstance(obj, dict):
+                return {k: _clean(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_clean(x) for x in obj]
+            return _serialise(obj)
+        print(json.dumps(_clean(out), indent=2))
     else:
         _print_report(result, use_colour=sys.stdout.isatty())
 
