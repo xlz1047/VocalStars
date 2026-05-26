@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from ml._model.voice_coach import VoiceCoachModel
+from ml.pitch_detection.model import PitchHead
 from ml.training.losses import MultiTaskLoss
 
-# 360 pitch bins: 20-cent spacing starting at B0 (31.7 Hz) — matches NanoPitch
-_N_BINS = 360
-_BINS_HZ: torch.Tensor = 31.7 * (
-    2 ** (torch.arange(_N_BINS, dtype=torch.float32) * 20.0 / 1200.0)
+_BINS_HZ: torch.Tensor = PitchHead.FMIN * (
+    2 ** (torch.arange(PitchHead.N_BINS, dtype=torch.float32) * PitchHead.CENTS_PER_BIN / 1200.0)
 )
 
-# 50-cent tolerance for raw pitch accuracy
 _CENTS_TOLERANCE = 50.0
 
 _LOSS_FN = MultiTaskLoss()
@@ -51,7 +48,7 @@ def _hz_to_pitch_bins(pitch_hz: torch.Tensor, device: torch.device) -> torch.Ten
 def _onset_targets_for_preds(onset_raw: torch.Tensor, T_out: int) -> torch.Tensor:
     """Downsample dense onset targets to match backbone output length T_out."""
     T_in = onset_raw.shape[-1]
-    stride = T_in // T_out
+    stride = max(1, T_in // T_out)
     return onset_raw[:, ::stride][:, :T_out]
 
 
@@ -82,7 +79,6 @@ def evaluate_model(
         Dict mapping metric name to scalar float.
     """
     model.eval()
-    _LOSS_FN.to(device)
 
     total_pitch_correct = 0.0
     total_chroma_correct = 0.0
@@ -94,6 +90,9 @@ def evaluate_model(
 
     breath_correct = 0.0
     breath_total = 0.0
+
+    vad_correct = 0.0
+    vad_total = 0.0
 
     pitch_loss_sum = 0.0
     n_batches = 0
@@ -109,10 +108,24 @@ def evaluate_model(
         onset_probs: torch.Tensor  = preds["onset_probs"]
         breath_prob: torch.Tensor  = preds["breath_prob"]
 
+        # ── VAD accuracy ──────────────────────────────────────────────────────
+        if "vad_logits" in preds:
+            vad_mean = torch.sigmoid(preds["vad_logits"]).squeeze(-1).mean(dim=1)  # (B,)
+            voiced_proxy = (pitch_hz_gt > 0).float()
+            vad_correct += (vad_mean > 0.5).float().eq(voiced_proxy).sum().item()
+            vad_total += float(voiced_proxy.size(0))
+
         # ── pitch metrics ─────────────────────────────────────────────────────
-        # Mean-pool per-frame logits → clip-level for evaluation against scalar GT
+        # Pick the single most-confident frame per clip to avoid dilution from
+        # unvoiced frames whose logits are near zero (sigmoid ≈ 0.5 uniform).
         if pitch_logits.dim() == 3:
-            pitch_logits_eval = pitch_logits.mean(dim=1)  # (B, 360)
+            B_eval = pitch_logits.size(0)
+            probs_all = torch.sigmoid(pitch_logits)           # (B, T, 360)
+            confidence = probs_all.max(dim=-1).values         # (B, T)
+            best_frame = confidence.argmax(dim=1)             # (B,)
+            pitch_logits_eval = pitch_logits[
+                torch.arange(B_eval, device=pitch_logits.device), best_frame
+            ]                                                 # (B, 360)
         else:
             pitch_logits_eval = pitch_logits
         pitch_bins_gt = _hz_to_pitch_bins(pitch_hz_gt, device)
@@ -162,6 +175,7 @@ def evaluate_model(
     )
 
     breath_acc = breath_correct / max(breath_total, 1.0)
+    vad_acc    = vad_correct / max(vad_total, 1.0)
     overall    = pitch_rpa * 0.4 + onset_f1 * 0.3 + breath_acc * 0.3
     pitch_loss = pitch_loss_sum / max(n_batches, 1)
 
@@ -170,6 +184,7 @@ def evaluate_model(
         "pitch_rca":  pitch_rca,
         "onset_f1":   onset_f1,
         "breath_acc": breath_acc,
+        "vad_acc":    vad_acc,
         "overall":    overall,
         "pitch_loss": pitch_loss,
     }

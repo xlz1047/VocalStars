@@ -17,7 +17,7 @@ class RhythmHead(nn.Module):
         """Compute per-frame onset probabilities.
 
         Args:
-            x: Feature tensor of shape (batch, 256, T).
+            x: Feature tensor of shape (batch, 384, T).
 
         Returns:
             Onset probability tensor of shape (batch, 1, T).
@@ -25,19 +25,3 @@ class RhythmHead(nn.Module):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         return self.sigmoid(self.conv3(x))
-
-    @staticmethod
-    def loss_fn(pred: torch.Tensor, target: torch.Tensor, pos_weight: float = 10.0) -> torch.Tensor:
-        """Binary cross-entropy loss with positive class weighting.
-
-        Args:
-            pred: Predicted onset probabilities, shape (batch, 1, T).
-            target: Ground-truth onset labels, shape (batch, 1, T).
-            pos_weight: Weight for positive (onset) class to handle class imbalance.
-
-        Returns:
-            Scalar loss tensor.
-        """
-        weight_tensor = torch.where(target == 1, torch.tensor(pos_weight), torch.tensor(1.0))
-        criterion = nn.BCELoss(weight=weight_tensor)
-        return criterion(pred, target)

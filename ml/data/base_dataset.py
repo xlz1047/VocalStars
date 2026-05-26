@@ -10,6 +10,29 @@ from ml.feature_extraction.audio_utils import load_audio
 from ml.feature_extraction.mel import MelExtractor
 
 
+def split_singers_alphabetical(all_singers: list[str], split: str) -> set[str]:
+    """Deterministic 80/10/10 split of singer IDs by alphabetical order.
+
+    Args:
+        all_singers: Sorted list of all unique singer IDs.
+        split: One of ``"train"``, ``"val"``, ``"test"``.
+
+    Returns:
+        Set of singer IDs assigned to the requested split.
+    """
+    n = len(all_singers)
+    if n == 0:
+        return set()
+    n_train = max(1, int(0.8 * n))
+    n_val = max(1, int(0.1 * n))
+    boundaries: dict[str, list[str]] = {
+        "train": all_singers[:n_train],
+        "val": all_singers[n_train : n_train + n_val],
+        "test": all_singers[n_train + n_val :],
+    }
+    return set(boundaries.get(split, all_singers))
+
+
 class SingingDataset(Dataset, ABC):
     """Abstract base for all singing datasets in VocalStars.
 
@@ -43,11 +66,12 @@ class SingingDataset(Dataset, ABC):
         """
 
     @abstractmethod
-    def _extract_labels(self, audio_path: str, meta: dict) -> dict:
+    def _extract_labels(self, audio: np.ndarray, sr: int, meta: dict) -> dict:
         """Derive supervision labels for a single sample.
 
         Args:
-            audio_path: Path to the audio file.
+            audio: Already-loaded 1-D float32 audio array at ``self.sr``.
+            sr: Sample rate of *audio* in Hz.
             meta: The metadata dict for this sample (same object returned by
                 ``_get_filepaths``), may contain ``"pitch_path"`` etc.
 
@@ -79,5 +103,5 @@ class SingingDataset(Dataset, ABC):
         meta = self._files[idx]
         audio: np.ndarray = load_audio(meta["audio_path"], sr=self.sr)
         mel_tensor: torch.Tensor = self._mel.compute_tensor(audio)  # (1, 128, T)
-        labels: dict = self._extract_labels(meta["audio_path"], meta)
+        labels: dict = self._extract_labels(audio, self.sr, meta)
         return mel_tensor, labels

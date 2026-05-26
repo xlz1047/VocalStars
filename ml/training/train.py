@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Subset
@@ -29,15 +29,15 @@ from ml.data import (
 from ml.data.gtsinger_dataset import GTSingerDataset
 from ml.data.popbutfy_dataset import PopBuTFyDataset
 from ml.data.base_dataset import SingingDataset
+from ml.pitch_detection.model import PitchHead
 from ml.training.evaluate import evaluate_model
 from ml.training.losses import MultiTaskLoss
 from ml.training.npz_dataset import NanoPitchDataset, f0_to_posteriorgram
 
 # ── constants ─────────────────────────────────────────────────────────────────
 _WARMUP_STEPS = 500
-_N_PITCH_BINS = 360
-_PITCH_BIN_HZ: torch.Tensor = 31.7 * (
-    2 ** (torch.arange(_N_PITCH_BINS, dtype=torch.float32) * 20.0 / 1200.0)
+_PITCH_BIN_HZ: torch.Tensor = PitchHead.FMIN * (
+    2 ** (torch.arange(PitchHead.N_BINS, dtype=torch.float32) * PitchHead.CENTS_PER_BIN / 1200.0)
 )
 
 
@@ -209,7 +209,7 @@ def _augment_mel_batch(
     snr_range: tuple[float, float],
     device: torch.device,
 ) -> torch.Tensor:
-    """Mix clean and noise log-mel at a random SNR (ported from NanoPitch train.py).
+    """Mix clean and noise log-mel at a random SNR.
 
     Args:
         mel_clean: ``(B, T, 40)`` clean log-mel.
@@ -263,12 +263,13 @@ def train_one_epoch(
         mel = mel.to(device, non_blocking=True)          # (B, T, 40)
         T = mel.shape[1]
 
-        pitch_bins = _hz_to_pitch_bins(targets_raw["pitch_hz"], T, device)  # (B, T, 360)
+        pitch_hz   = targets_raw["pitch_hz"].to(device, non_blocking=True)
+        pitch_bins = _hz_to_pitch_bins(pitch_hz, T, device)                # (B, T, 360)
         onset_t    = targets_raw["onset_targets"].to(device, non_blocking=True)  # (B, T)
         breath_t   = targets_raw["breath_target"].to(device, non_blocking=True)  # (B,)
 
         optimizer.zero_grad(set_to_none=True)
-        with autocast():
+        with autocast(device.type, enabled=device.type == "cuda"):
             preds = model(mel)
             T_out = preds["onset_probs"].shape[-1]
             # Align onset targets to model output length (no-op when T_out == T)
@@ -351,7 +352,7 @@ def _train_npz_step(
     vad_target = vad_gt.unsqueeze(-1)                          # (B, T, 1)
 
     optimizer.zero_grad(set_to_none=True)
-    with autocast():
+    with autocast(device.type):
         preds = model(mel_mixed)
         T_out = preds["onset_probs"].shape[-1]
         dummy_onset = torch.zeros(B, 1, T_out, device=device)
@@ -388,6 +389,35 @@ def _train_npz_step(
     return global_step, n_batches, totals
 
 
+# ── evaluation display ────────────────────────────────────────────────────────
+
+def _print_eval_table(
+    epoch: int,
+    train_losses: dict[str, float],
+    val_metrics: dict[str, float],
+) -> None:
+    """Print a formatted evaluation table for the given epoch."""
+    rows = [
+        ("Train loss",     f"{train_losses.get('total_loss', float('nan')):.4f}", ""),
+        ("Pitch RPA",      f"{val_metrics.get('pitch_rpa', 0.0) * 100:.1f}%",    "±50 cents"),
+        ("Pitch RCA",      f"{val_metrics.get('pitch_rca', 0.0) * 100:.1f}%",    "octave-invariant"),
+        ("Rhythm F1",      f"{val_metrics.get('onset_f1', 0.0) * 100:.1f}%",     "onset@0.5"),
+        ("Breath acc",     f"{val_metrics.get('breath_acc', 0.0) * 100:.1f}%",   "binary"),
+        ("VAD acc",        f"{val_metrics.get('vad_acc', 0.0) * 100:.1f}%",      "clip-level proxy"),
+        ("Overall score",  f"{val_metrics.get('overall', 0.0) * 100:.1f}%",      "weighted mean"),
+        ("Val pitch loss", f"{val_metrics.get('pitch_loss', float('nan')):.4f}",  ""),
+    ]
+    header = f"  Epoch {epoch:03d}  Detailed Evaluation"
+    print(f"┌{'─' * 52}┐")
+    print(f"│{header:<52}│")
+    print(f"├{'─' * 18}┬{'─' * 11}┬{'─' * 20}┤")
+    print(f"│  {'Metric':<16}│  {'Value':<9}│  {'Notes':<18}│")
+    print(f"├{'─' * 18}┼{'─' * 11}┼{'─' * 20}┤")
+    for label, value, note in rows:
+        print(f"│  {label:<16}│  {value:<9}│  {note:<18}│")
+    print(f"└{'─' * 18}┴{'─' * 11}┴{'─' * 20}┘")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -415,8 +445,7 @@ def main() -> None:
     parser.add_argument("--use-pretrained",        action="store_true",
                         help="Initialise backbone and pitch head from NanoPitch checkpoint")
     parser.add_argument("--nanopitch-checkpoint",
-                        default="/Users/uddhavjain/Desktop/Drexel/audio projects/"
-                                "NanoPitchGroup/NanoPitch/training/runs/expD_best.pth",
+                        default=None,
                         help="Path to NanoPitch .pth checkpoint for weight transfer")
     parser.add_argument("--npz-dir",               default=None,
                         help="Directory with NanoPitch clean.npz/noise.npz for co-training")
@@ -429,12 +458,20 @@ def main() -> None:
     parser.add_argument("--reset-lr",              action="store_true",
                         help="After loading a --resume checkpoint, reset LR to --lr "
                              "instead of continuing from the saved optimizer state")
+    parser.add_argument("--freeze-pretrained-epochs", type=int, default=0,
+                        help="When using --use-pretrained, freeze encoder and pitch head "
+                             "for this many epochs so new heads stabilise first")
     args = parser.parse_args()
 
     ckpt_dir = Path(args.checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     print(f"Device: {device}")
 
     # ── W&B ──────────────────────────────────────────────────────────────────
@@ -453,13 +490,14 @@ def main() -> None:
     )
 
     n_workers = min(4, os.cpu_count() or 1)
+    pin = device.type == "cuda"
     train_loader = DataLoader(
         train_set,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=n_workers,
         collate_fn=_collate_fn,
-        pin_memory=device.type == "cuda",
+        pin_memory=pin,
     )
     val_loader = DataLoader(
         val_set,
@@ -467,7 +505,7 @@ def main() -> None:
         shuffle=False,
         num_workers=n_workers,
         collate_fn=_collate_fn,
-        pin_memory=device.type == "cuda",
+        pin_memory=pin,
     )
 
     # ── optional NanoPitch npz co-training data ───────────────────────────────
@@ -480,12 +518,14 @@ def main() -> None:
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=n_workers,
-            pin_memory=device.type == "cuda",
+            pin_memory=pin,
         )
         print(f"  NanoPitch dataset: {len(npz_ds)} sequences")
 
     # ── model ─────────────────────────────────────────────────────────────────
     if args.use_pretrained:
+        if not args.nanopitch_checkpoint:
+            raise ValueError("--use-pretrained requires --nanopitch-checkpoint <path>")
         print(f"Loading pretrained NanoPitch weights from {args.nanopitch_checkpoint}…")
         model = VoiceCoachModel.from_nanopitch_checkpoint(args.nanopitch_checkpoint)
     else:
@@ -494,15 +534,30 @@ def main() -> None:
     model.summary()
 
     criterion = MultiTaskLoss()
-    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-
-    for g in optimizer.param_groups:
-        g["initial_lr"] = g["lr"]
+    if args.use_pretrained:
+        pretrained_params = (
+            list(model.encoder.parameters()) + list(model.pitch_head.parameters())
+        )
+        new_params = (
+            list(model.rhythm_head.parameters()) + list(model.breath_head.parameters())
+        )
+        optimizer = AdamW([
+            {"params": pretrained_params, "lr": args.lr * 0.1, "initial_lr": args.lr * 0.1},
+            {"params": new_params,        "lr": args.lr,       "initial_lr": args.lr},
+        ], weight_decay=1e-4)
+        print(
+            f"  Optimizer: pretrained params @ lr={args.lr * 0.1:.2e}, "
+            f"new params @ lr={args.lr:.2e}"
+        )
+    else:
+        optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+        for g in optimizer.param_groups:
+            g["initial_lr"] = g["lr"]
 
     cosine_scheduler = CosineAnnealingLR(
         optimizer, T_max=args.epochs * max(len(train_loader), 1), eta_min=1e-6
     )
-    scaler = GradScaler(enabled=device.type == "cuda")
+    scaler = GradScaler(device.type if device.type == "cuda" else "cpu", enabled=device.type == "cuda")
 
     start_epoch = 0
     best_val_loss = math.inf
@@ -526,6 +581,16 @@ def main() -> None:
 
     # ── loop ──────────────────────────────────────────────────────────────────
     for epoch in range(start_epoch, args.epochs):
+        # Optionally freeze pretrained components for early epochs
+        if args.use_pretrained and args.freeze_pretrained_epochs > 0:
+            frozen = epoch < args.freeze_pretrained_epochs
+            for p in (*model.encoder.parameters(), *model.pitch_head.parameters()):
+                p.requires_grad_(not frozen)
+            if epoch == 0:
+                print(f"  Freezing encoder+pitch_head for first {args.freeze_pretrained_epochs} epochs")
+            elif epoch == args.freeze_pretrained_epochs:
+                print(f"  Epoch {epoch:03d}: unfreezing encoder+pitch_head")
+
         train_losses, global_step = train_one_epoch(
             model, train_loader, criterion, optimizer,
             cosine_scheduler, scaler, device, global_step, wandb_run,
@@ -535,13 +600,17 @@ def main() -> None:
         val_metrics = evaluate_model(model, val_loader, device)
         val_pitch_loss = val_metrics.get("pitch_loss", float("nan"))
 
-        pitch_acc = val_metrics.get("pitch_rpa", 0.0) * 100.0
         print(
             f"Epoch {epoch:03d} | "
-            f"train_loss={train_losses['total_loss']:.4f} | "
-            f"val_pitch_loss={val_pitch_loss:.4f} | "
-            f"pitch_acc={pitch_acc:.1f}%"
+            f"loss={train_losses['total_loss']:.4f} | "
+            f"pitch={val_metrics.get('pitch_rpa', 0.0) * 100:.1f}% "
+            f"rhy={val_metrics.get('onset_f1', 0.0) * 100:.1f}% "
+            f"bth={val_metrics.get('breath_acc', 0.0) * 100:.1f}% "
+            f"vad={val_metrics.get('vad_acc', 0.0) * 100:.1f}% "
+            f"overall={val_metrics.get('overall', 0.0) * 100:.1f}%"
         )
+        if epoch % 5 == 0 or epoch == start_epoch:
+            _print_eval_table(epoch, train_losses, val_metrics)
 
         if wandb_run is not None:
             wandb_run.log({"epoch": epoch, **{f"val/{k}": v for k, v in val_metrics.items()}})

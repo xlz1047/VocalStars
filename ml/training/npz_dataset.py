@@ -1,7 +1,7 @@
 """NanoPitchDataset: loads pre-extracted mel/f0/vad from NanoPitch .npz files.
 
-Ported from NanoPitch training/train.py.  Serves (mel_clean, mel_noise, vad, f0)
-windows for co-training VoiceCoachModel alongside singing datasets.
+Serves (mel_clean, mel_noise, vad, f0) windows for co-training VoiceCoachModel
+alongside singing datasets.
 
 NPZ structure expected in data_dir:
   clean.npz — keys: mel (N,40) float16, f0 (N,) float16, vad (N,) float16,
@@ -19,12 +19,11 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from ml.pitch_detection.model import PitchHead
 
-# ── Pitch conversion utilities (ported verbatim from NanoPitch model.py) ─────
-
-_PITCH_FMIN: float = 31.7
-_PITCH_CENTS_PER_BIN: float = 20.0
-_PITCH_BINS: int = 360
+_PITCH_FMIN: float = PitchHead.FMIN
+_PITCH_CENTS_PER_BIN: float = PitchHead.CENTS_PER_BIN
+_PITCH_BINS: int = PitchHead.N_BINS
 
 
 def f0_to_posteriorgram(
@@ -49,18 +48,17 @@ def f0_to_posteriorgram(
         n_frames = len(f0_hz)
 
     f0_hz = np.asarray(f0_hz[:n_frames], dtype=np.float64)
-    bins = _f0_to_bin(f0_hz)
+    bins = _f0_to_bin(f0_hz)                            # (T,), -1 for unvoiced
 
-    posteriorgram = np.zeros((n_frames, _PITCH_BINS), dtype=np.float32)
-    bin_indices = np.arange(_PITCH_BINS, dtype=np.float64)
+    bin_indices = np.arange(_PITCH_BINS, dtype=np.float64)  # (360,)
+    voiced = bins >= 0                                   # (T,)
 
-    for t in range(n_frames):
-        if bins[t] < 0:
-            continue
-        dist = bin_indices - bins[t]
-        posteriorgram[t] = np.exp(-0.5 * (dist / sigma_bins) ** 2)
+    # Vectorised Gaussian: dist[t, b] = bin_indices[b] - bins[t]
+    dist = bin_indices[None, :] - bins[:, None]          # (T, 360)
+    gauss = np.exp(-0.5 * (dist / sigma_bins) ** 2).astype(np.float32)
+    gauss[~voiced] = 0.0                                 # zero out unvoiced frames
 
-    return posteriorgram
+    return gauss
 
 
 def _f0_to_bin(f0_hz: np.ndarray) -> np.ndarray:

@@ -17,6 +17,8 @@ downloaded to ``ml/data/raw/dsing/`` and the DALI annotation format is
 confirmed against the specific DSing release being used.
 """
 
+import numpy as np
+
 from ml.data.base_dataset import SingingDataset
 
 
@@ -43,7 +45,7 @@ class DSingDataset(SingingDataset):
             "DSingDataset._get_filepaths: download the dataset to ml/data/raw/dsing/ first."
         )
 
-    def _extract_labels(self, audio_path: str, meta: dict) -> dict:
+    def _extract_labels(self, audio: np.ndarray, sr: int, meta: dict) -> dict:
         """Extract pitch, onset, breath, and singer labels from DALI annotations.
 
         Raises:

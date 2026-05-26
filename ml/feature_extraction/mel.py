@@ -15,6 +15,8 @@ class MelExtractor:
         sr: Sample rate of the input audio in Hz.
         n_mels: Number of mel filter banks.
         hop_length: Hop size between STFT frames in samples.
+        n_fft: FFT size. Larger than win_length gives zero-padded FFT for higher
+            frequency resolution. Must be >= win_length.
         win_length: STFT window length in samples.
     """
 
@@ -23,11 +25,12 @@ class MelExtractor:
         sr: int = 16000,
         n_mels: int = 40,
         hop_length: int = 160,
+        n_fft: int = 512,
         win_length: int = 400,
     ) -> None:
         self._transform = T.MelSpectrogram(
             sample_rate=sr,
-            n_fft=win_length,
+            n_fft=n_fft,
             win_length=win_length,
             hop_length=hop_length,
             n_mels=n_mels,
@@ -57,4 +60,4 @@ class MelExtractor:
         """
         waveform = torch.from_numpy(audio).unsqueeze(0)
         mel = self._transform(waveform)
-        return torch.log(mel + 1e-9)
+        return torch.log(mel + 1e-10)

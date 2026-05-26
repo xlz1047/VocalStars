@@ -18,6 +18,8 @@ Implement ``_get_filepaths`` and ``_extract_labels`` once the dataset is
 downloaded to ``ml/data/raw/csd/``.
 """
 
+import numpy as np
+
 from ml.data.base_dataset import SingingDataset
 
 
@@ -45,7 +47,7 @@ class CSDDataset(SingingDataset):
             "CSDDataset._get_filepaths: download the dataset to ml/data/raw/csd/ first."
         )
 
-    def _extract_labels(self, audio_path: str, meta: dict) -> dict:
+    def _extract_labels(self, audio: np.ndarray, sr: int, meta: dict) -> dict:
         """Extract pitch, onset, breath, and singer labels.
 
         Raises:

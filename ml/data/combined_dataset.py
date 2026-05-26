@@ -95,7 +95,8 @@ def build_dataset(data_dir: str, split: str = "train") -> CombinedSingingDataset
     if os.path.exists(popbutfy_path):
         datasets.append(PopBuTFyDataset(popbutfy_path, split))
 
-    assert len(datasets) > 0, f"No datasets found in {data_dir}"
+    if not datasets:
+        raise ValueError(f"No datasets found in {data_dir}")
     print(
         f"Loaded {len(datasets)} datasets: "
         + ", ".join(type(d).__name__ for d in datasets)

@@ -11,7 +11,7 @@ def focal_bce(
     gamma: float = 0.5,
     pos_weight: float = 2.3,
 ) -> torch.Tensor:
-    """Focal binary cross-entropy loss (ported verbatim from NanoPitch train.py).
+    """Focal binary cross-entropy loss.
 
     Down-weights easy (high-confidence) frames and up-weights voiced frames to
     counteract class imbalance.  gamma=0 reduces to weighted BCE.

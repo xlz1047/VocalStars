@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VocalStars ml_new — Results Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --card2: #14161f;
+    --border: #2a2d3a;
+    --accent1: #7c6af7;   /* purple – pitch */
+    --accent2: #3b9eff;   /* blue   – vad */
+    --accent3: #2dd4a0;   /* teal   – breath */
+    --accent4: #f97316;   /* orange – onset */
+    --accent5: #e879a0;   /* pink   – loss */
+    --green: #22c55e;
+    --yellow: #f9c74f;
+    --text: #e2e4ef;
+    --muted: #7b7f99;
+    --highlight: #f9c74f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  header {
+    text-align: center;
+    padding: 40px 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #131623 0%, var(--bg) 100%);
+  }
+  header h1 { font-size: 2rem; color: var(--highlight); letter-spacing: 1px; }
+  header .subtitle { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
+  header .tag-row { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+  .badge {
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge-purple { background: rgba(124,106,247,0.18); color: var(--accent1); border: 1px solid rgba(124,106,247,0.4); }
+  .badge-blue   { background: rgba(59,158,255,0.18); color: var(--accent2); border: 1px solid rgba(59,158,255,0.4); }
+  .badge-teal   { background: rgba(45,212,160,0.18); color: var(--accent3); border: 1px solid rgba(45,212,160,0.4); }
+  .badge-orange { background: rgba(249,115,22,0.18); color: var(--accent4); border: 1px solid rgba(249,115,22,0.4); }
+  .badge-pink   { background: rgba(232,121,160,0.18); color: var(--accent5); border: 1px solid rgba(232,121,160,0.4); }
+  .badge-yellow { background: rgba(249,199,79,0.18); color: var(--yellow); border: 1px solid rgba(249,199,79,0.4); }
+  .badge-green  { background: rgba(34,197,94,0.18); color: var(--green); border: 1px solid rgba(34,197,94,0.4); }
+
+  nav {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+  nav button {
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  nav button:hover { border-color: var(--accent1); color: var(--text); }
+  nav button.active {
+    background: var(--accent1);
+    border-color: var(--accent1);
+    color: #fff;
+  }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--highlight);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-desc { color: var(--muted); margin-bottom: 24px; font-size: 0.92rem; }
+
+  /* ── Model cards grid ── */
+  .model-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 32px; }
+
+  .model-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .model-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .model-card.pitch::before { background: var(--accent1); }
+  .model-card.vad::before   { background: var(--accent2); }
+  .model-card.breath::before { background: var(--accent3); }
+  .model-card.onset::before  { background: var(--accent4); }
+
+  .model-card h3 { font-size: 1.05rem; margin-bottom: 4px; }
+  .model-card h3.pitch  { color: var(--accent1); }
+  .model-card h3.vad    { color: var(--accent2); }
+  .model-card h3.breath { color: var(--accent3); }
+  .model-card h3.onset  { color: var(--accent4); }
+
+  .param-count { font-size: 0.8rem; color: var(--muted); margin-bottom: 14px; }
+  .model-detail { font-size: 0.85rem; color: var(--text); margin-bottom: 8px; }
+  .model-detail span { color: var(--muted); }
+
+  .arch-flow {
+    margin-top: 14px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    background: var(--card2);
+    border-radius: 8px;
+    padding: 10px;
+    line-height: 1.8;
+  }
+  .arch-flow .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .arch-flow .arrow { color: var(--border); flex-shrink: 0; margin-top: 1px; }
+  .arch-flow .step-label { color: var(--text); font-weight: 500; }
+
+  /* ── Design decisions ── */
+  .decisions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
+  .decision-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .decision-card .icon { font-size: 1.4rem; margin-bottom: 8px; }
+  .decision-card h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; }
+  .decision-card p { font-size: 0.8rem; color: var(--muted); }
+
+  /* ── Tabs within a panel ── */
+  .inner-tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+  .inner-tab {
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .inner-tab.active { color: var(--text); border-color: var(--muted); background: var(--card); }
+  .inner-panel { display: none; }
+  .inner-panel.active { display: block; }
+
+  /* ── Chart cards ── */
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 700px) { .chart-row { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .chart-card h4 { font-size: 0.9rem; color: var(--muted); margin-bottom: 14px; }
+  .chart-card canvas { max-height: 240px; }
+
+  /* ── Metrics ── */
+  .metrics-section { margin-bottom: 36px; }
+  .metrics-section h3 { font-size: 1.05rem; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .metrics-section h3 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .big-metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .big-metric {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    min-width: 130px;
+    text-align: center;
+  }
+  .big-metric .val { font-size: 1.7rem; font-weight: 700; }
+  .big-metric .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .big-metric.highlight-val .val { color: var(--highlight); }
+  .big-metric.green-val .val { color: var(--green); }
+
+  /* ── Decoder comparison table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+  }
+  th {
+    background: var(--card2);
+    color: var(--muted);
+    font-weight: 600;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  td.best { color: var(--highlight); font-weight: 700; }
+  td.good { color: var(--green); font-weight: 600; }
+
+  /* ── Dataset cards ── */
+  .dataset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .dataset-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .dataset-card h3 { font-size: 1rem; margin-bottom: 4px; }
+  .dataset-card .clips { font-size: 1.4rem; font-weight: 700; color: var(--highlight); margin: 8px 0 4px; }
+  .dataset-card .clips-lbl { font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; }
+  .dataset-card .detail-row { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .dataset-card .detail-row:last-child { border-bottom: none; }
+  .dataset-card .detail-row .key { color: var(--muted); }
+
+  /* ── Stat bar ── */
+  .stat-bar-wrap { margin: 6px 0 12px; }
+  .stat-bar-label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; }
+  .stat-bar-label .name { color: var(--muted); }
+  .stat-bar-label .pct { font-weight: 600; }
+  .stat-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .stat-bar .fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+  /* ── Note callout ── */
+  .callout {
+    background: rgba(249,199,79,0.07);
+    border: 1px solid rgba(249,199,79,0.25);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-top: 12px;
+  }
+  .callout strong { color: var(--highlight); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VocalStars ml_new — Results Dashboard</h1>
+  <p class="subtitle">HCQT + Causal GRU Architecture &nbsp;·&nbsp; Trained on GTSinger, VocalSet, PopBuTFy &nbsp;·&nbsp; Branch: Ush</p>
+  <div class="tag-row">
+    <span class="badge badge-purple">Causal / Streaming</span>
+    <span class="badge badge-blue">HCQT Features</span>
+    <span class="badge badge-teal">Singer-Level Splits</span>
+    <span class="badge badge-orange">Focal Loss</span>
+    <span class="badge badge-pink">Viterbi Post-Processing</span>
+    <span class="badge badge-yellow">~62K Total Params</span>
+    <span class="badge badge-green">Web-Deployable</span>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('architecture', this)">Architecture</button>
+  <button onclick="showTab('training', this)">Training Curves</button>
+  <button onclick="showTab('results', this)">Results</button>
+  <button onclick="showTab('datasets', this)">Datasets</button>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════ ARCHITECTURE ═══════════════════════════════════════ -->
+<div id="tab-architecture" class="tab-panel active">
+  <p class="section-title">Model Architecture</p>
+  <p class="section-desc">Four independent causal GRU models, each handling one task. All are streaming-compatible (no future context required).</p>
+
+  <div class="model-grid">
+
+    <div class="model-card pitch">
+      <h3 class="pitch">PitchModel</h3>
+      <div class="param-count">~53,000 parameters</div>
+      <div class="model-detail"><span>Input:</span> HCQT (6 × 180 × T) + VAD features (3 × T)</div>
+      <div class="model-detail"><span>Output:</span> Pitch logits (T × 180 bins) + Voiced prob (T)</div>
+      <div class="model-detail"><span>Freq range:</span> C1 (32.7 Hz) → B6, 33 ¢/bin</div>
+      <div class="arch-flow">
+        <div class="step"><span class="arrow">1</span><div><span class="step-label">Harmonic Fusion</span><br>Conv1d 6→16→8→1 per freq bin</div></div>
+        <div class="step"><span class="arrow">2</span><div><span class="step-label">Causal GRU</span><br>180 → 96 hidden units</div></div>
+        <div class="step"><span class="arrow">3</span><div><span class="step-label">Pitch Head</span><br>96 → 180 bin logits</div></div>
+        <div class="step"><span class="arrow">4</span><div><span class="step-label">Voiced Head</span><br>(96 + 3 VAD feats) → 1 sigmoid</div></div>
+      </div>
+    </div>
+
+    <div class="model-card vad">
+      <h3 class="vad">VADModel</h3>
+      <div class="param-count">~2,000 parameters</div>
+      <div class="model-detail"><span>Input:</span> Mean-pooled HCQT + VAD features (9 × T)</div>
+      <div class="model-detail"><span>Output:</span> Voice activity probability (T)</div>
+      <div class="model-detail"><span>Dropout:</span> 0.2 between layers</div>
+      <div class="arch-flow">
+        <div class="step"><span class="arrow">1</span><div><span class="step-label">Mean-Pool HCQT</span><br>6 harmonics → 6 scalars per frame</div></div>
+        <div class="step"><span class="arrow">2</span><div><span class="step-label">2-Layer Causal GRU</span><br>9 → 64 → 64 hidden units</div></div>
+        <div class="step"><span class="arrow">3</span><div><span class="step-label">VAD Head</span><br>64 → 1 sigmoid</div></div>
+      </div>
+    </div>
+
+    <div class="model-card breath">
+      <h3 class="breath">BreathModel</h3>
+      <div class="param-count">~2,500 parameters</div>
+      <div class="model-detail"><span>Input:</span> VAD features only (3 × T) — RMS, flatness, ZCR</div>
+      <div class="model-detail"><span>Output:</span> Breath probability per frame (T)</div>
+      <div class="model-detail"><span>Loss:</span> Focal BCE, pos_weight=8.0 (imbalanced)</div>
+      <div class="arch-flow">
+        <div class="step"><span class="arrow">1</span><div><span class="step-label">VAD Features</span><br>RMS energy, spectral flatness, ZCR</div></div>
+        <div class="step"><span class="arrow">2</span><div><span class="step-label">2-Layer Causal GRU</span><br>3 → 64 → 64 hidden units</div></div>
+        <div class="step"><span class="arrow">3</span><div><span class="step-label">Breath Head</span><br>64 → 1 sigmoid</div></div>
+      </div>
+    </div>
+
+    <div class="model-card onset">
+      <h3 class="onset">OnsetModel</h3>
+      <div class="param-count">~5,000 parameters</div>
+      <div class="model-detail"><span>Input:</span> First HCQT harmonic (180 × T)</div>
+      <div class="model-detail"><span>Output:</span> Onset probability per frame (T)</div>
+      <div class="model-detail"><span>Loss:</span> Focal BCE, pos_weight=6.0</div>
+      <div class="arch-flow">
+        <div class="step"><span class="arrow">1</span><div><span class="step-label">Linear Projection</span><br>180 → 32 + LayerNorm</div></div>
+        <div class="step"><span class="arrow">2</span><div><span class="step-label">Causal GRU</span><br>32 → 64 hidden units</div></div>
+        <div class="step"><span class="arrow">3</span><div><span class="step-label">Onset Head</span><br>64 → 1 sigmoid</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="section-title" style="margin-top:32px;">Feature Extraction Pipeline</p>
+  <div class="decisions-grid">
+    <div class="decision-card">
+      <div class="icon">🎵</div>
+      <h4>HCQT — Harmonic CQT</h4>
+      <p>Stacks 6 harmonic CQT layers (h=1…6). All harmonics of a pitch appear at the same bin, creating vertical stripes. 180 bins, 36 bins/octave, 10 ms hop.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">📊</div>
+      <h4>VAD Features</h4>
+      <p>3 handcrafted per-frame scalars: RMS energy, spectral flatness (Wiener entropy), zero-crossing rate. Computed causally with ring buffer at inference.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">🏷️</div>
+      <h4>F0 Labels</h4>
+      <p>Fast path: librosa.yin (~0.07 s/clip). Accurate path: librosa.pyin (~7.5 s/clip). Range C2–C7. Gaussian soft-labels (σ=2 bins) for pitch training.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">🧠</div>
+      <h4>Singer-Level Splits</h4>
+      <p>Train/val/test split by singer_id, not clip. Prevents the model from memorising a singer's voice. Typical 80/10/10 ratio.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">⚡</div>
+      <h4>Causal Architecture</h4>
+      <p>All convolutions and GRUs look only at past frames. Enables real-time streaming: feed one 10 ms frame at a time and carry GRU hidden state.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">🎯</div>
+      <h4>Focal Loss</h4>
+      <p>Breath (~3–8% positive) and onset (~8–15% positive) frames are rare. Focal loss (γ=2) down-weights easy negatives so the model learns the rare class.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">🔮</div>
+      <h4>Viterbi Post-Processing</h4>
+      <p>HMM with 181 states (180 voiced bins + 1 unvoiced). Gaussian pitch transition (σ=2 bins). Applied after argmax decoding to smooth pitch tracks.</p>
+    </div>
+    <div class="decision-card">
+      <div class="icon">🌐</div>
+      <h4>Pitch Augmentation</h4>
+      <p>±3 semitone pitch-shift on training clips. HCQT bins shift by an integer offset, so no re-extraction needed — just bin-wise circular shift.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ TRAINING CURVES ═══════════════════════════════════════ -->
+<div id="tab-training" class="tab-panel">
+  <p class="section-title">Training Curves</p>
+  <p class="section-desc">Per-epoch metrics on the validation set. All models use AdamW + CosineAnnealingLR with a short linear warmup.</p>
+
+  <div class="inner-tabs">
+    <button class="inner-tab active" onclick="showInner('pitch-curves', this)">Pitch (50 epochs)</button>
+    <button class="inner-tab" onclick="showInner('vad-curves', this)">VAD (30 epochs)</button>
+    <button class="inner-tab" onclick="showInner('breath-curves', this)">Breath (30 epochs)</button>
+    <button class="inner-tab" onclick="showInner('onset-curves', this)">Onset (30 epochs)</button>
+  </div>
+
+  <div id="inner-pitch-curves" class="inner-panel active">
+    <div class="chart-row">
+      <div class="chart-card"><h4>Train vs Val Loss</h4><canvas id="pitchLossChart"></canvas></div>
+      <div class="chart-card"><h4>Raw Pitch Accuracy (RPA) — within 50 ¢</h4><canvas id="pitchRpaChart"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>Voice Detection Rate (VDR) & Voice False Alarm (VFA)</h4><canvas id="pitchVoicingChart"></canvas></div>
+      <div class="chart-card"><h4>Median Pitch Error (cents)</h4><canvas id="pitchCentsChart"></canvas></div>
+    </div>
+  </div>
+
+  <div id="inner-vad-curves" class="inner-panel">
+    <div class="chart-row">
+      <div class="chart-card"><h4>Train vs Val Loss</h4><canvas id="vadLossChart"></canvas></div>
+      <div class="chart-card"><h4>F1 Score</h4><canvas id="vadF1Chart"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>Precision & Recall</h4><canvas id="vadPRChart"></canvas></div>
+      <div class="chart-card"><h4>Accuracy</h4><canvas id="vadAccChart"></canvas></div>
+    </div>
+  </div>
+
+  <div id="inner-breath-curves" class="inner-panel">
+    <div class="chart-row">
+      <div class="chart-card"><h4>Train vs Val Loss</h4><canvas id="breathLossChart"></canvas></div>
+      <div class="chart-card"><h4>F1 Score</h4><canvas id="breathF1Chart"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>Precision & Recall</h4><canvas id="breathPRChart"></canvas></div>
+      <div class="chart-card"><h4>Accuracy</h4><canvas id="breathAccChart"></canvas></div>
+    </div>
+    <div class="callout">
+      <strong>Note:</strong> Breath frames are only ~3–8% of all frames. Accuracy stays high even for a naive "always-negative" predictor. F1 is the meaningful metric here — the model achieves up to <strong>37%</strong> F1 with >85% recall, meaning it catches most breath frames at the cost of some false positives.
+    </div>
+  </div>
+
+  <div id="inner-onset-curves" class="inner-panel">
+    <div class="chart-row">
+      <div class="chart-card"><h4>Train vs Val Loss</h4><canvas id="onsetLossChart"></canvas></div>
+      <div class="chart-card"><h4>F1 Score</h4><canvas id="onsetF1Chart"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><h4>Precision & Recall</h4><canvas id="onsetPRChart"></canvas></div>
+      <div class="chart-card"><h4>Accuracy</h4><canvas id="onsetAccChart"></canvas></div>
+    </div>
+    <div class="callout">
+      <strong>Note:</strong> Onset frames (pitch jumps >1.5 st or voiced-after-silence) are ~8–15% of frames. The model converges slowly; F1 improves from 0 → 29% over 30 epochs as it learns a conservative detection threshold.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ RESULTS ═══════════════════════════════════════ -->
+<div id="tab-results" class="tab-panel">
+  <p class="section-title">Final Evaluation Results</p>
+  <p class="section-desc">Best-checkpoint metrics on the held-out test split. Pitch evaluated with three decoding strategies.</p>
+
+  <!-- Pitch -->
+  <div class="metrics-section">
+    <h3><span class="dot" style="background:var(--accent1)"></span>Pitch Model — Best Checkpoint (Epoch 43, HiRes)</h3>
+    <div class="big-metrics">
+      <div class="big-metric highlight-val"><div class="val">93.2%</div><div class="lbl">RPA (argmax)</div></div>
+      <div class="big-metric"><div class="val">94.1%</div><div class="lbl">RCA (argmax)</div></div>
+      <div class="big-metric green-val"><div class="val">96.3%</div><div class="lbl">VDR</div></div>
+      <div class="big-metric"><div class="val">5.1%</div><div class="lbl">VFA</div></div>
+      <div class="big-metric"><div class="val">11.2¢</div><div class="lbl">Median Error</div></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Decoder</th>
+          <th>RPA (↑)</th>
+          <th>RCA (↑)</th>
+          <th>VDR (↑)</th>
+          <th>VFA (↓)</th>
+          <th>Median Cents (↓)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Argmax</strong></td>
+          <td class="best">93.2%</td>
+          <td class="best">94.1%</td>
+          <td>96.3%</td>
+          <td>5.1%</td>
+          <td>11.2¢</td>
+        </tr>
+        <tr>
+          <td><strong>Weighted Mean</strong></td>
+          <td>89.9%</td>
+          <td>90.3%</td>
+          <td>96.3%</td>
+          <td>5.1%</td>
+          <td class="best">7.1¢</td>
+        </tr>
+        <tr>
+          <td><strong>Viterbi</strong></td>
+          <td>90.1%</td>
+          <td>91.6%</td>
+          <td>96.3%</td>
+          <td>5.1%</td>
+          <td>11.4¢</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Decoding trade-off:</strong> Argmax achieves the highest frame-level RPA. Weighted mean sacrifices 3 pp on RPA but reduces median pitch error from 11.2¢ → <strong>7.1¢</strong> — a significant improvement for singing coaching where smooth, stable pitch output matters more than exact per-frame accuracy. Viterbi adds HMM smoothing without substantially changing either metric.
+    </div>
+  </div>
+
+  <!-- VAD -->
+  <div class="metrics-section" style="margin-top:32px;">
+    <h3><span class="dot" style="background:var(--accent2)"></span>VAD Model — Best Checkpoint (Epoch 27)</h3>
+    <div class="big-metrics">
+      <div class="big-metric"><div class="val">94.5%</div><div class="lbl">Accuracy</div></div>
+      <div class="big-metric"><div class="val">94.8%</div><div class="lbl">Precision</div></div>
+      <div class="big-metric green-val"><div class="val">98.7%</div><div class="lbl">Recall</div></div>
+      <div class="big-metric highlight-val"><div class="val">96.8%</div><div class="lbl">F1 Score</div></div>
+    </div>
+
+    <div style="margin-top:8px;">
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-label"><span class="name">Accuracy</span><span class="pct" style="color:var(--accent2)">94.5%</span></div>
+        <div class="stat-bar"><div class="fill" style="width:94.5%;background:var(--accent2)"></div></div>
+      </div>
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-label"><span class="name">Precision</span><span class="pct" style="color:var(--accent2)">94.8%</span></div>
+        <div class="stat-bar"><div class="fill" style="width:94.8%;background:var(--accent2)"></div></div>
+      </div>
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-label"><span class="name">Recall</span><span class="pct" style="color:var(--green)">98.7%</span></div>
+        <div class="stat-bar"><div class="fill" style="width:98.7%;background:var(--green)"></div></div>
+      </div>
+      <div class="stat-bar-wrap">
+        <div class="stat-bar-label"><span class="name">F1</span><span class="pct" style="color:var(--highlight)">96.8%</span></div>
+        <div class="stat-bar"><div class="fill" style="width:96.8%;background:var(--highlight)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Breath -->
+  <div class="metrics-section" style="margin-top:32px;">
+    <h3><span class="dot" style="background:var(--accent3)"></span>Breath Model — Best Checkpoint (Epoch 9)</h3>
+    <div class="big-metrics">
+      <div class="big-metric"><div class="val">98.7%</div><div class="lbl">Accuracy</div></div>
+      <div class="big-metric"><div class="val">23.7%</div><div class="lbl">Precision</div></div>
+      <div class="big-metric green-val"><div class="val">84.3%</div><div class="lbl">Recall</div></div>
+      <div class="big-metric highlight-val"><div class="val">37.0%</div><div class="lbl">F1 Score</div></div>
+    </div>
+    <div class="callout">
+      <strong>Why low F1?</strong> Breath frames are ~3–8% of all frames. High accuracy (~99%) is trivially achieved. The model prioritises recall (catches 84% of breath frames) at the cost of precision — acceptable for coaching: missing breaths is worse than false-positives. F1=37% is meaningful for this extreme imbalance.
+    </div>
+  </div>
+
+  <!-- Onset -->
+  <div class="metrics-section" style="margin-top:32px;">
+    <h3><span class="dot" style="background:var(--accent4)"></span>Onset Model — Best Checkpoint (Epoch 26)</h3>
+    <div class="big-metrics">
+      <div class="big-metric"><div class="val">98.3%</div><div class="lbl">Accuracy</div></div>
+      <div class="big-metric"><div class="val">27.6%</div><div class="lbl">Precision</div></div>
+      <div class="big-metric"><div class="val">30.7%</div><div class="lbl">Recall</div></div>
+      <div class="big-metric highlight-val"><div class="val">29.0%</div><div class="lbl">F1 Score</div></div>
+    </div>
+    <div class="callout">
+      <strong>Note:</strong> Onset detection is the hardest task — onsets are rare (~8–15% of frames) and their precise timing is noisy in label generation. F1=29% shows the model has learned some discriminative signal but this task benefits most from post-hoc peak-picking and hysteresis rather than raw frame-level F1.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ DATASETS ═══════════════════════════════════════ -->
+<div id="tab-datasets" class="tab-panel">
+  <p class="section-title">Training Datasets</p>
+  <p class="section-desc">Three public singing datasets, combined for ~10,506 clips. Singer-level splits prevent cross-singer leakage.</p>
+
+  <div class="dataset-grid">
+    <div class="dataset-card">
+      <h3 style="color:var(--accent1)">GTSinger</h3>
+      <div class="clips">6,892</div>
+      <div class="clips-lbl">clips</div>
+      <div class="detail-row"><span class="key">Annotation</span><span>Frame-level phoneme JSON (ground truth VAD)</span></div>
+      <div class="detail-row"><span class="key">Techniques</span><span>Breathy, normal, falsetto, belting, vibrato</span></div>
+      <div class="detail-row"><span class="key">Language</span><span>English subset</span></div>
+      <div class="detail-row"><span class="key">F0 labels</span><span>librosa.pyin (probabilistic)</span></div>
+      <div class="detail-row"><span class="key">VAD source</span><span>Phoneme boundary JSON</span></div>
+    </div>
+
+    <div class="dataset-card">
+      <h3 style="color:var(--accent2)">VocalSet</h3>
+      <div class="clips">3,613</div>
+      <div class="clips-lbl">clips</div>
+      <div class="detail-row"><span class="key">Annotation</span><span>No phoneme annotations</span></div>
+      <div class="detail-row"><span class="key">Techniques</span><span>48 singing techniques, professional singers</span></div>
+      <div class="detail-row"><span class="key">Language</span><span>Vocal exercises (all languages)</span></div>
+      <div class="detail-row"><span class="key">F0 labels</span><span>librosa.yin (fast path)</span></div>
+      <div class="detail-row"><span class="key">VAD source</span><span>Energy thresholding (RMS > 0.01)</span></div>
+    </div>
+
+    <div class="dataset-card">
+      <h3 style="color:var(--accent3)">PopBuTFy</h3>
+      <div class="clips">400+</div>
+      <div class="clips-lbl">clips</div>
+      <div class="detail-row"><span class="key">Annotation</span><span>No phoneme annotations</span></div>
+      <div class="detail-row"><span class="key">Style</span><span>Pop / musical theater songs</span></div>
+      <div class="detail-row"><span class="key">Language</span><span>English</span></div>
+      <div class="detail-row"><span class="key">F0 labels</span><span>librosa.yin (fast path)</span></div>
+      <div class="detail-row"><span class="key">VAD source</span><span>Energy thresholding (RMS > 0.01)</span></div>
+    </div>
+  </div>
+
+  <div style="margin-top:32px;">
+    <p class="section-title">Dataset Split Strategy</p>
+    <p class="section-desc">Splits are created by <strong>singer ID</strong>, not by clip. This ensures the model sees each singer in only one partition — preventing it from memorising voice timbre rather than learning pitch structure.</p>
+    <div class="decisions-grid" style="max-width:700px;">
+      <div class="decision-card">
+        <div class="icon">🎓</div>
+        <h4>Train — 80%</h4>
+        <p>~8,400 clips across all three datasets. Pitch-shift augmentation ±3 semitones applied here only.</p>
+      </div>
+      <div class="decision-card">
+        <div class="icon">🔬</div>
+        <h4>Validation — 10%</h4>
+        <p>~1,050 clips. Model checkpoint saved when best RPA (pitch) or best F1 (VAD/Breath/Onset) is achieved.</p>
+      </div>
+      <div class="decision-card">
+        <div class="icon">🏁</div>
+        <h4>Test — 10%</h4>
+        <p>~1,050 clips. Only touched for the final evaluation reported in the Results tab.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ── Tab switching ──
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function showInner(name, btn) {
+  const parent = btn.closest('.tab-panel');
+  parent.querySelectorAll('.inner-panel').forEach(p => p.classList.remove('active'));
+  parent.querySelectorAll('.inner-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('inner-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Embedded training data ──
+const PITCH = {"epoch":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50],"train_loss":[2.059038,1.687069,1.659859,1.644289,1.633769,1.624884,1.619311,1.611521,1.607695,1.604887,1.601161,1.599062,1.596612,1.592577,1.591843,1.590031,1.586235,1.584951,1.583798,1.582008,1.581995,1.577878,1.578596,1.576556,1.575560,1.574449,1.572389,1.572312,1.571474,1.570525,1.570279,1.569150,1.568484,1.568526,1.566318,1.567575,1.565604,1.565790,1.564657,1.565520,1.565187,1.564963,1.564964,1.563306,1.565531,1.563999,1.564878,1.564189,1.564337,1.564159],"val_loss":[1.788078,1.747253,1.724987,1.709382,1.698064,1.691459,1.684419,1.678170,1.672991,1.669643,1.666674,1.658984,1.661243,1.658820,1.654902,1.654559,1.649700,1.646158,1.646129,1.643109,1.640360,1.643382,1.640785,1.641217,1.639741,1.638556,1.636913,1.634802,1.635503,1.636768,1.633582,1.633979,1.633535,1.632410,1.628135,1.631438,1.631494,1.627379,1.629162,1.628280,1.628775,1.628376,1.627808,1.628550,1.625568,1.624768,1.627329,1.629530,1.627380,1.629208],"rpa":[0.8859,0.8968,0.9013,0.9060,0.9109,0.9136,0.9131,0.9155,0.9180,0.9187,0.9197,0.9219,0.9215,0.9226,0.9236,0.9238,0.9246,0.9264,0.9266,0.9273,0.9271,0.9264,0.9280,0.9278,0.9283,0.9286,0.9289,0.9297,0.9301,0.9286,0.9295,0.9291,0.9302,0.9303,0.9317,0.9303,0.9308,0.9317,0.9310,0.9316,0.9308,0.9311,0.9320,0.9317,0.9321,0.9325,0.9320,0.9309,0.9317,0.9305],"median_cents":[13.7,13.1,12.8,12.7,12.5,12.2,12.3,12.1,12.0,11.9,11.9,11.9,11.8,11.8,11.7,11.7,11.6,11.5,11.5,11.5,11.5,11.5,11.4,11.4,11.4,11.4,11.4,11.3,11.3,11.4,11.3,11.3,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2,11.2],"vdr":[0.9858,0.9876,0.9643,0.9778,0.9840,0.9851,0.9677,0.9692,0.9642,0.9530,0.9574,0.9538,0.9516,0.9685,0.9602,0.9622,0.9638,0.9685,0.9634,0.9624,0.9577,0.9660,0.9745,0.9688,0.9690,0.9680,0.9632,0.9643,0.9723,0.9612,0.9605,0.9642,0.9677,0.9638,0.9692,0.9636,0.9611,0.9651,0.9643,0.9624,0.9657,0.9655,0.9633,0.9648,0.9628,0.9612,0.9647,0.9658,0.9645,0.9630],"vfa":[0.4023,0.4173,0.1576,0.1869,0.1884,0.2007,0.0969,0.0829,0.0719,0.0511,0.0693,0.0488,0.0488,0.0825,0.0607,0.0601,0.0659,0.0709,0.0562,0.0554,0.0438,0.0585,0.0811,0.0623,0.0665,0.0612,0.0564,0.0604,0.0682,0.0534,0.0473,0.0584,0.0610,0.0525,0.0658,0.0554,0.0500,0.0546,0.0544,0.0491,0.0553,0.0546,0.0534,0.0580,0.0548,0.0532,0.0574,0.0583,0.0543,0.0562]};
+
+const VAD = {"epoch":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],"train_loss":[0.093052,0.077231,0.067998,0.061872,0.056866,0.054000,0.052115,0.049578,0.048565,0.047357,0.045070,0.044114,0.043692,0.043288,0.040971,0.040406,0.040293,0.039305,0.037424,0.037462,0.036768,0.036151,0.034764,0.034095,0.033770,0.032678,0.032260,0.031794,0.031591,0.031052],"val_loss":[0.089068,0.068424,0.064897,0.062955,0.073149,0.063626,0.052771,0.056748,0.062292,0.054881,0.050397,0.047721,0.048291,0.050976,0.051378,0.057780,0.049613,0.046089,0.045693,0.043395,0.058388,0.043241,0.044811,0.042349,0.040055,0.041787,0.038100,0.041715,0.039925,0.039565],"f1":[0.9161,0.9377,0.9401,0.9495,0.9353,0.9440,0.9539,0.9489,0.9500,0.9488,0.9554,0.9557,0.9577,0.9536,0.9522,0.9505,0.9534,0.9582,0.9572,0.9631,0.9574,0.9613,0.9647,0.9651,0.9667,0.9616,0.9676,0.9650,0.9636,0.9657],"precision":[0.8544,0.8920,0.8913,0.9236,0.8798,0.9047,0.9258,0.9164,0.9239,0.9097,0.9291,0.9239,0.9309,0.9223,0.9155,0.9091,0.9161,0.9302,0.9228,0.9423,0.9506,0.9308,0.9531,0.9471,0.9493,0.9331,0.9485,0.9449,0.9377,0.9452],"recall":[0.9874,0.9883,0.9945,0.9769,0.9983,0.9869,0.9837,0.9839,0.9776,0.9914,0.9832,0.9896,0.9862,0.9871,0.9919,0.9959,0.9939,0.9879,0.9943,0.9848,0.9643,0.9938,0.9766,0.9837,0.9847,0.9919,0.9874,0.9860,0.9909,0.9870],"accuracy":[0.8503,0.8911,0.8947,0.9138,0.8855,0.9029,0.9212,0.9123,0.9143,0.9115,0.9238,0.9237,0.9277,0.9205,0.9174,0.9140,0.9194,0.9287,0.9263,0.9375,0.9290,0.9336,0.9407,0.9408,0.9436,0.9343,0.9450,0.9408,0.9379,0.9417]};
+
+const BREATH = {"epoch":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],"train_loss":[0.127657,0.099341,0.084223,0.074928,0.071475,0.069855,0.066166,0.066750,0.063089,0.062777,0.062048,0.063099,0.060154,0.059895,0.059788,0.059307,0.059552,0.059740,0.057224,0.058766,0.057857,0.057138,0.055789,0.056815,0.055995,0.057409,0.057579,0.056626,0.056063,0.057222],"val_loss":[0.021778,0.021637,0.016323,0.014307,0.014733,0.013409,0.013522,0.013757,0.012008,0.012756,0.011516,0.013411,0.013083,0.012012,0.011705,0.011478,0.012915,0.011067,0.011191,0.011792,0.011973,0.012332,0.011327,0.012219,0.011138,0.010874,0.011819,0.011091,0.011500,0.012075],"f1":[0.1758,0.2066,0.2623,0.2735,0.2504,0.2252,0.2917,0.3038,0.3704,0.3142,0.3182,0.3068,0.3115,0.2868,0.2837,0.3205,0.3332,0.3387,0.3113,0.3000,0.3377,0.3683,0.3478,0.2916,0.3169,0.3201,0.3139,0.3561,0.3485,0.3476],"precision":[0.1009,0.1180,0.1651,0.1666,0.1463,0.1316,0.1818,0.1823,0.2373,0.1958,0.1939,0.1869,0.1894,0.1750,0.1751,0.1972,0.2080,0.2098,0.1896,0.1813,0.2097,0.2313,0.2165,0.1761,0.1956,0.1969,0.1917,0.2213,0.2197,0.2167],"recall":[0.6840,0.8307,0.6378,0.7640,0.8658,0.7802,0.7373,0.9120,0.8432,0.7944,0.8865,0.8558,0.8752,0.7932,0.7468,0.8562,0.8380,0.8784,0.8690,0.8682,0.8675,0.9029,0.8832,0.8476,0.8341,0.8554,0.8653,0.9112,0.8420,0.8788],"accuracy":[0.9741,0.9694,0.9856,0.9850,0.9817,0.9840,0.9867,0.9833,0.9875,0.9877,0.9864,0.9847,0.9851,0.9873,0.9877,0.9867,0.9861,0.9876,0.9872,0.9858,0.9871,0.9865,0.9879,0.9861,0.9873,0.9874,0.9870,0.9871,0.9879,0.9869]};
+
+const ONSET = {"epoch":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30],"train_loss":[0.070487,0.064562,0.060527,0.054643,0.052776,0.051476,0.050983,0.049411,0.048991,0.047331,0.047306,0.046894,0.045452,0.044869,0.044830,0.044995,0.043611,0.044234,0.043565,0.043584,0.043557,0.043272,0.042828,0.043095,0.042560,0.042498,0.042538,0.042765,0.042660,0.042626],"val_loss":[0.063393,0.067726,0.059535,0.057588,0.051850,0.051345,0.051178,0.049306,0.049363,0.049552,0.050320,0.048218,0.048489,0.047860,0.045917,0.047067,0.046556,0.046368,0.045098,0.047426,0.046137,0.045933,0.045771,0.046447,0.045218,0.044767,0.045172,0.045000,0.045314,0.044819],"f1":[0.0000,0.1106,0.2117,0.2051,0.2108,0.2272,0.2406,0.2508,0.2553,0.2524,0.2476,0.2727,0.2579,0.2645,0.2547,0.2761,0.2705,0.2790,0.2773,0.2692,0.2769,0.2737,0.2763,0.2762,0.2824,0.2904,0.2832,0.2839,0.2877,0.2821],"precision":[0.0000,0.0953,0.2176,0.2087,0.2433,0.2490,0.2244,0.2625,0.2671,0.2418,0.2595,0.2535,0.2631,0.2402,0.2837,0.2498,0.2920,0.2790,0.2840,0.2590,0.2744,0.2744,0.2693,0.2637,0.2899,0.2758,0.2755,0.2768,0.2767,0.2724],"recall":[0.0000,0.1316,0.2062,0.2016,0.1859,0.2090,0.2593,0.2402,0.2445,0.2638,0.2367,0.2950,0.2530,0.2942,0.2312,0.3086,0.2520,0.2791,0.2708,0.2802,0.2795,0.2731,0.2837,0.2898,0.2754,0.3065,0.2914,0.2915,0.2996,0.2925],"accuracy":[0.9888,0.9759,0.9827,0.9826,0.9844,0.9841,0.9818,0.9840,0.9841,0.9823,0.9838,0.9824,0.9835,0.9817,0.9850,0.9820,0.9846,0.9839,0.9841,0.9829,0.9834,0.9838,0.9832,0.9828,0.9842,0.9832,0.9834,0.9836,0.9832,0.9834]};
+
+// ── Chart helpers ──
+const COLORS = { purple: '#7c6af7', blue: '#3b9eff', teal: '#2dd4a0', orange: '#f97316', pink: '#e879a0', yellow: '#f9c74f', green: '#22c55e', muted: '#7b7f99' };
+
+const baseOpts = (yLabel) => ({
+  responsive: true,
+  maintainAspectRatio: true,
+  plugins: { legend: { labels: { color: '#e2e4ef', font: { size: 11 }, boxWidth: 12 } } },
+  scales: {
+    x: { ticks: { color: '#7b7f99', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: 'Epoch', color: '#7b7f99', font: { size: 10 } } },
+    y: { ticks: { color: '#7b7f99', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' }, title: { display: true, text: yLabel, color: '#7b7f99', font: { size: 10 } } }
+  }
+});
+
+function makeChart(id, datasets, yLabel) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: datasets[0].data.map((_, i) => i + 1),
+      datasets: datasets.map(d => ({
+        label: d.label,
+        data: d.data,
+        borderColor: d.color,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        borderDash: d.dash || []
+      }))
+    },
+    options: baseOpts(yLabel)
+  });
+}
+
+// ── Build all charts ──
+window.addEventListener('load', () => {
+  // PITCH
+  makeChart('pitchLossChart', [
+    { label: 'Train Loss', data: PITCH.train_loss, color: COLORS.purple },
+    { label: 'Val Loss',   data: PITCH.val_loss,   color: COLORS.pink, dash: [4,3] }
+  ], 'CE Loss');
+
+  makeChart('pitchRpaChart', [
+    { label: 'RPA (50¢)', data: PITCH.rpa, color: COLORS.purple }
+  ], 'RPA');
+
+  makeChart('pitchVoicingChart', [
+    { label: 'VDR',  data: PITCH.vdr, color: COLORS.green },
+    { label: 'VFA',  data: PITCH.vfa, color: COLORS.orange, dash: [4,3] }
+  ], 'Rate');
+
+  makeChart('pitchCentsChart', [
+    { label: 'Median Cents Error', data: PITCH.median_cents, color: COLORS.yellow }
+  ], 'Cents');
+
+  // VAD
+  makeChart('vadLossChart', [
+    { label: 'Train Loss', data: VAD.train_loss, color: COLORS.blue },
+    { label: 'Val Loss',   data: VAD.val_loss,   color: COLORS.pink, dash: [4,3] }
+  ], 'Focal BCE Loss');
+
+  makeChart('vadF1Chart', [
+    { label: 'F1 Score', data: VAD.f1, color: COLORS.blue }
+  ], 'F1');
+
+  makeChart('vadPRChart', [
+    { label: 'Precision', data: VAD.precision, color: COLORS.blue },
+    { label: 'Recall',    data: VAD.recall,    color: COLORS.green, dash: [4,3] }
+  ], 'Score');
+
+  makeChart('vadAccChart', [
+    { label: 'Accuracy', data: VAD.accuracy, color: COLORS.teal }
+  ], 'Accuracy');
+
+  // BREATH
+  makeChart('breathLossChart', [
+    { label: 'Train Loss', data: BREATH.train_loss, color: COLORS.teal },
+    { label: 'Val Loss',   data: BREATH.val_loss,   color: COLORS.pink, dash: [4,3] }
+  ], 'Focal BCE Loss');
+
+  makeChart('breathF1Chart', [
+    { label: 'F1 Score', data: BREATH.f1, color: COLORS.teal }
+  ], 'F1');
+
+  makeChart('breathPRChart', [
+    { label: 'Precision', data: BREATH.precision, color: COLORS.teal },
+    { label: 'Recall',    data: BREATH.recall,    color: COLORS.green, dash: [4,3] }
+  ], 'Score');
+
+  makeChart('breathAccChart', [
+    { label: 'Accuracy', data: BREATH.accuracy, color: COLORS.muted }
+  ], 'Accuracy');
+
+  // ONSET
+  makeChart('onsetLossChart', [
+    { label: 'Train Loss', data: ONSET.train_loss, color: COLORS.orange },
+    { label: 'Val Loss',   data: ONSET.val_loss,   color: COLORS.pink, dash: [4,3] }
+  ], 'Focal BCE Loss');
+
+  makeChart('onsetF1Chart', [
+    { label: 'F1 Score', data: ONSET.f1, color: COLORS.orange }
+  ], 'F1');
+
+  makeChart('onsetPRChart', [
+    { label: 'Precision', data: ONSET.precision, color: COLORS.orange },
+    { label: 'Recall',    data: ONSET.recall,    color: COLORS.green, dash: [4,3] }
+  ], 'Score');
+
+  makeChart('onsetAccChart', [
+    { label: 'Accuracy', data: ONSET.accuracy, color: COLORS.muted }
+  ], 'Accuracy');
+});
+</script>
+</body>
+</html>

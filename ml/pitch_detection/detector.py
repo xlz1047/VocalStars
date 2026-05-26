@@ -4,10 +4,10 @@ import numpy as np
 from typing import Any
 
 from ml.feature_extraction.audio_utils import load_audio
+from ml.pitch_detection.model import PitchHead
 
 
 # ── Viterbi decoders ─────────────────────────────────────────────────────────
-# Copied verbatim from NanoPitch training/model.py (offline and realtime variants).
 
 def viterbi_decode(posteriorgram, transition_width=12, voicing_threshold=0.3,
                    onset_penalty=2.0, vad=None, vad_weight=0.0):
@@ -167,13 +167,10 @@ def viterbi_decode_realtime(posteriorgram, transition_width=12,
 
 # ── Pitch conversion helpers ──────────────────────────────────────────────────
 
-_PITCH_FMIN: float = 31.7
-_PITCH_CENTS_PER_BIN: float = 20.0
-
 
 def _bin_to_f0(bins: np.ndarray | float) -> np.ndarray | float:
     """Convert NanoPitch bin index to Hz. Inverse of f0_to_bin."""
-    return _PITCH_FMIN * 2.0 ** (np.asarray(bins) * _PITCH_CENTS_PER_BIN / 1200.0)
+    return PitchHead.FMIN * 2.0 ** (np.asarray(bins) * PitchHead.CENTS_PER_BIN / 1200.0)
 
 
 # ── Detector ─────────────────────────────────────────────────────────────────
@@ -193,6 +190,9 @@ class PitchDetector:
     def __init__(self, model=None, sr: int = 16000) -> None:
         self._model = model
         self._sr = sr
+        if model is not None:
+            from ml.feature_extraction.mel import MelExtractor
+            self._mel_extractor = MelExtractor(sr=sr)
 
     def analyze(self, audio_chunk: np.ndarray, sr: int = 16000) -> dict[str, Any]:
         """Extract pitch features from a single audio chunk.
@@ -212,10 +212,8 @@ class PitchDetector:
     def _analyze_with_model(self, audio: np.ndarray, sr: int) -> dict[str, Any]:
         """Run model forward pass and apply realtime Viterbi decoding."""
         import torch
-        from ml.feature_extraction.mel import MelExtractor
 
-        mel_extractor = MelExtractor(sr=sr)
-        mel_np = mel_extractor.compute(audio)  # (n_mels, T)
+        mel_np = self._mel_extractor.compute(audio)  # (n_mels, T)
         mel_t = torch.from_numpy(mel_np).T.unsqueeze(0)  # (1, T, 40)
 
         self._model.eval()
@@ -255,10 +253,7 @@ class PitchDetector:
         if len(voiced) > 0:
             try:
                 notes = [librosa.hz_to_note(float(hz)) for hz in voiced]
-                seen: dict[str, None] = {}
-                for n in notes:
-                    seen[n] = None
-                estimated_notes = list(seen)
+                estimated_notes = list(dict.fromkeys(notes))
                 note_transitions = [(a, b) for a, b in zip(notes[:-1], notes[1:]) if a != b]
             except Exception:
                 pass

@@ -25,24 +25,11 @@ class BreathHead(nn.Module):
         """Classify backbone embeddings as breath or non-breath.
 
         Args:
-            x: Float tensor of shape (batch, 256, T).
+            x: Float tensor of shape (batch, 384, T).
 
         Returns:
             Float tensor of shape (batch, 1) with probabilities in [0, 1].
         """
-        pooled = x.mean(dim=-1)  # (batch, 256)
+        pooled = x.mean(dim=-1)  # (batch, 384)
         out = self.relu(self.fc1(pooled))  # (batch, 64)
         return self.sigmoid(self.fc2(out))  # (batch, 1)
-
-    @staticmethod
-    def loss_fn(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Compute binary cross-entropy loss.
-
-        Args:
-            pred: Predicted probabilities, shape (batch, 1).
-            target: Ground-truth labels, shape (batch, 1), values in {0, 1}.
-
-        Returns:
-            Scalar loss tensor.
-        """
-        return nn.BCELoss()(pred, target.float())

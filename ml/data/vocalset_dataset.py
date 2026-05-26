@@ -28,7 +28,8 @@ from pathlib import Path
 import librosa
 import numpy as np
 
-from ml.data.base_dataset import SingingDataset
+from ml.data.base_dataset import SingingDataset, split_singers_alphabetical
+from ml.feature_extraction.audio_utils import extract_median_pitch, is_breath_onset
 
 
 class VocalSetDataset(SingingDataset):
@@ -88,38 +89,22 @@ class VocalSetDataset(SingingDataset):
             except Exception:
                 pass  # fall through to deterministic split
 
-        n = len(all_singers)
-        n_train = int(0.8 * n)
-        n_val = max(1, int(0.1 * n))
-        boundaries: dict[str, list[str]] = {
-            "train": all_singers[:n_train],
-            "val": all_singers[n_train : n_train + n_val],
-            "test": all_singers[n_train + n_val :],
-        }
-        return set(boundaries[self.split])
+        return split_singers_alphabetical(all_singers, self.split)
 
-    def _extract_labels(self, audio_path: str, meta: dict) -> dict:
+    def _extract_labels(self, audio: np.ndarray, sr: int, meta: dict) -> dict:
         """Extract labels using librosa DSP heuristics.
 
         Args:
-            audio_path: Path to the wav file.
+            audio: Already-loaded 1-D float32 audio array.
+            sr: Sample rate in Hz.
             meta: Metadata dict with keys ``"singer_id"`` and ``"technique"``.
 
         Returns:
             Dict with keys: pitch_hz, onset_frames, breath_bool, singer_id, technique.
         """
-        audio, sr = librosa.load(audio_path, sr=self.sr, mono=True)
-
-        f0: np.ndarray = librosa.yin(audio, fmin=50, fmax=2000, sr=sr)
-        voiced = f0[f0 > 0]
-        pitch_hz = float(np.median(voiced)) if len(voiced) > 0 else 0.0
-
+        pitch_hz = extract_median_pitch(audio, sr)
         onset_frames: np.ndarray = librosa.onset.onset_detect(y=audio, sr=sr)
-
-        n_head = int(0.1 * sr)
-        head = audio[:n_head] if len(audio) >= n_head else audio
-        rms = float(np.sqrt(np.mean(head ** 2)))
-        breath_bool = rms < 0.02
+        breath_bool = is_breath_onset(audio, sr)
 
         return {
             "pitch_hz": pitch_hz,

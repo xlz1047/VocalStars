@@ -3,6 +3,11 @@
 import librosa
 import numpy as np
 
+_DEFAULT_FMIN: float = 50.0
+_DEFAULT_FMAX: float = 2000.0
+_BREATH_THRESHOLD: float = 0.02
+_BREATH_HEAD_SECS: float = 0.1
+
 
 def load_audio(path: str, sr: int = 16000) -> np.ndarray:
     """Load an audio file, resample to target sample rate, and convert to mono float32.
@@ -50,6 +55,50 @@ def frame_audio(
         start += hop_len
 
     return frames
+
+
+def extract_median_pitch(
+    audio: np.ndarray,
+    sr: int,
+    fmin: float = _DEFAULT_FMIN,
+    fmax: float = _DEFAULT_FMAX,
+) -> float:
+    """Return median voiced fundamental frequency via librosa YIN.
+
+    Args:
+        audio: 1-D float32 audio array.
+        sr: Sample rate in Hz.
+        fmin: Minimum frequency bound in Hz.
+        fmax: Maximum frequency bound in Hz.
+
+    Returns:
+        Median voiced F0 in Hz, or 0.0 if no voiced frames are detected.
+    """
+    f0: np.ndarray = librosa.yin(audio, fmin=fmin, fmax=fmax, sr=sr)
+    voiced = f0[f0 > 0]
+    return float(np.median(voiced)) if len(voiced) > 0 else 0.0
+
+
+def is_breath_onset(
+    audio: np.ndarray,
+    sr: int,
+    threshold: float = _BREATH_THRESHOLD,
+    head_secs: float = _BREATH_HEAD_SECS,
+) -> bool:
+    """Return True when the clip begins with a breath (low RMS head segment).
+
+    Args:
+        audio: 1-D float32 audio array.
+        sr: Sample rate in Hz.
+        threshold: RMS amplitude below which the head is considered a breath.
+        head_secs: Duration of the head segment to measure in seconds.
+
+    Returns:
+        True if the head RMS is below *threshold*.
+    """
+    n_head = int(head_secs * sr)
+    head = audio[:n_head] if len(audio) >= n_head else audio
+    return float(np.sqrt(np.mean(head ** 2))) < threshold
 
 
 def normalize_audio(audio: np.ndarray) -> np.ndarray:

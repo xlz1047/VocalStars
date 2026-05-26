@@ -22,6 +22,7 @@ import librosa
 import numpy as np
 
 from ml.data.base_dataset import SingingDataset
+from ml.feature_extraction.audio_utils import extract_median_pitch, is_breath_onset
 
 
 class MIR1KDataset(SingingDataset):
@@ -53,37 +54,30 @@ class MIR1KDataset(SingingDataset):
 
         return files
 
-    def _extract_labels(self, audio_path: str, meta: dict) -> dict:
+    def _extract_labels(self, audio: np.ndarray, sr: int, meta: dict) -> dict:
         """Extract labels from the .pv annotation and librosa DSP.
 
         Args:
-            audio_path: Path to the wav file.
+            audio: Already-loaded 1-D float32 audio array.
+            sr: Sample rate in Hz.
             meta: Metadata dict; may contain ``"pitch_path"`` and ``"singer_id"``.
 
         Returns:
             Dict with keys: pitch_hz, onset_frames, breath_bool, singer_id.
         """
-        audio, sr = librosa.load(audio_path, sr=self.sr, mono=True)
-
         if "pitch_path" in meta:
             pitches: np.ndarray = np.loadtxt(meta["pitch_path"])
             voiced = pitches[pitches > 0]
             pitch_hz = float(np.median(voiced)) if len(voiced) > 0 else 0.0
         else:
-            f0: np.ndarray = librosa.yin(audio, fmin=50, fmax=2000, sr=sr)
-            voiced_f0 = f0[f0 > 0]
-            pitch_hz = float(np.median(voiced_f0)) if len(voiced_f0) > 0 else 0.0
+            pitch_hz = extract_median_pitch(audio, sr)
 
         onset_frames: np.ndarray = librosa.onset.onset_detect(y=audio, sr=sr)
-
-        n_head = int(0.1 * sr)
-        head = audio[:n_head] if len(audio) >= n_head else audio
-        rms = float(np.sqrt(np.mean(head ** 2)))
-        breath_bool = rms < 0.02
+        breath_bool = is_breath_onset(audio, sr)
 
         return {
             "pitch_hz": pitch_hz,
             "onset_frames": onset_frames,
             "breath_bool": breath_bool,
-            "singer_id": meta.get("singer_id", Path(audio_path).stem.split("_")[0]),
+            "singer_id": meta.get("singer_id", "unknown"),
         }
