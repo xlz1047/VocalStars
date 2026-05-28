@@ -1,0 +1,102 @@
+[
+  {
+    "sample": "00_silence",
+    "status": "success",
+    "expected": "Fan/background noise only. Expected: mostly unvoiced, no stable f0, low/no singing score.",
+    "expectation_check": "QUESTIONABLE: silence produced substantial voiced frames",
+    "score": 71,
+    "voiced_frame_ratio": 0.9553314121037464,
+    "mean_f0_hz": 80.50320434570312,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 101.83626556396484,
+    "breath_count": 0,
+    "onset_count": 1,
+    "note_count": 19,
+    "error": null,
+    "artifacts": {
+      "json": "reports/eval/self_recorded/00_silence/00_silence.json",
+      "markdown": "reports/eval/self_recorded/00_silence/00_silence.md",
+      "plot": "reports/eval/self_recorded/00_silence/00_silence_plots.svg"
+    }
+  },
+  {
+    "sample": "01_speaking_voice",
+    "status": "success",
+    "expected": "Speech, not singing. Expected: voice detected, but singing-specific pitch/rhythm coaching should be treated cautiously.",
+    "expectation_check": "OBSERVE: speech may be voiced; singing-specific outputs are not validated",
+    "score": 71,
+    "voiced_frame_ratio": 0.8337912087912088,
+    "mean_f0_hz": 161.2718048095703,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 768.9650268554688,
+    "breath_count": 14,
+    "onset_count": 11,
+    "note_count": 14,
+    "error": null,
+    "artifacts": {
+      "json": "reports/eval/self_recorded/01_speaking_voice/01_speaking_voice.json",
+      "markdown": "reports/eval/self_recorded/01_speaking_voice/01_speaking_voice.md",
+      "plot": "reports/eval/self_recorded/01_speaking_voice/01_speaking_voice_plots.svg"
+    }
+  },
+  {
+    "sample": "03_sustained_aaa",
+    "status": "success",
+    "expected": "Held sung vowel. Expected: sustained voiced region with stable f0 and few onsets.",
+    "expectation_check": "QUESTIONABLE: sustained vowel was not cleanly represented",
+    "score": 71,
+    "voiced_frame_ratio": 0.9899135446685879,
+    "mean_f0_hz": 120.43589782714844,
+    "min_f0_hz": 70.63591003417969,
+    "max_f0_hz": 659.1907958984375,
+    "breath_count": 1,
+    "onset_count": 6,
+    "note_count": 14,
+    "error": null,
+    "artifacts": {
+      "json": "reports/eval/self_recorded/03_sustained_aaa/03_sustained_aaa.json",
+      "markdown": "reports/eval/self_recorded/03_sustained_aaa/03_sustained_aaa.md",
+      "plot": "reports/eval/self_recorded/03_sustained_aaa/03_sustained_aaa_plots.svg"
+    }
+  },
+  {
+    "sample": "04_pitch_slide",
+    "status": "success",
+    "expected": "Sung pitch slide. Expected: voiced region with moving f0/pitch curve.",
+    "expectation_check": "PASS-ish",
+    "score": 91,
+    "voiced_frame_ratio": 0.9289855072463769,
+    "mean_f0_hz": 209.89610290527344,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 711.9654541015625,
+    "breath_count": 3,
+    "onset_count": 3,
+    "note_count": 3,
+    "error": null,
+    "artifacts": {
+      "json": "reports/eval/self_recorded/04_pitch_slide/04_pitch_slide.json",
+      "markdown": "reports/eval/self_recorded/04_pitch_slide/04_pitch_slide.md",
+      "plot": "reports/eval/self_recorded/04_pitch_slide/04_pitch_slide_plots.svg"
+    }
+  },
+  {
+    "sample": "05_twinkle_twinkle",
+    "status": "success",
+    "expected": "Short sung melody. Expected: voiced singing with multiple notes/onsets and changing f0.",
+    "expectation_check": "PASS-ish",
+    "score": 78,
+    "voiced_frame_ratio": 0.9334112149532711,
+    "mean_f0_hz": 169.40504455566406,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 423.3371276855469,
+    "breath_count": 5,
+    "onset_count": 10,
+    "note_count": 12,
+    "error": null,
+    "artifacts": {
+      "json": "reports/eval/self_recorded/05_twinkle_twinkle/05_twinkle_twinkle.json",
+      "markdown": "reports/eval/self_recorded/05_twinkle_twinkle/05_twinkle_twinkle.md",
+      "plot": "reports/eval/self_recorded/05_twinkle_twinkle/05_twinkle_twinkle_plots.svg"
+    }
+  }
+]
