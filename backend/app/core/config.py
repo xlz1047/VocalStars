@@ -8,7 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = "supersecret"
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql+psycopg://localhost/vocalstars"
     FRONTEND_ORIGIN: str = "http://localhost:3000"
 
     ML_CHECKPOINT: str = str(ROOT_DIR / "ml_new" / "checkpoints" / "unified" / "best.pt")

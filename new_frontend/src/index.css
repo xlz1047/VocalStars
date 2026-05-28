@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Syne", sans-serif;
+  
+  --color-error-container: #93000a;
+  --color-surface-container-high: #282933;
+  --color-inverse-on-surface: #2e303a;
+  --color-tertiary: #3cddc7;
+  --color-on-secondary-fixed: #2c0051;
+  --color-secondary-fixed-dim: #ddb7ff;
+  --color-surface-container: #1d1f29;
+  --color-primary: #ffb1c0;
+  --color-on-secondary-container: #d6a9ff;
+  --color-surface-container-lowest: #0c0e17;
+  --color-surface-container-highest: #32343e;
+  --color-on-error-container: #ffdad6;
+  --color-on-primary: #660029;
+  --color-on-secondary-fixed-variant: #6900b3;
+  --color-tertiary-fixed: #62fae3;
+  --color-tertiary-container: #00a392;
+  --color-surface-dim: #11131c;
+  --color-background: #0f111a;
+  --color-error: #ffb4ab;
+  --color-secondary: #ddb7ff;
+  --color-on-primary-container: #5a0023;
+  --color-on-background: #e1e1ef;
+  --color-surface-container-low: #191b24;
+  --color-on-error: #690005;
+  --color-primary-fixed-dim: #ffb1c0;
+  --color-surface-bright: #373943;
+  --color-surface-variant: #32343e;
+  --color-surface: #11131c;
+  --color-on-primary-fixed-variant: #90003d;
+  --color-secondary-container: #6f00be;
+  --color-secondary-fixed: #f0dbff;
+  --color-on-tertiary-fixed: #00201c;
+  --color-inverse-primary: #bc0051;
+  --color-on-tertiary-fixed-variant: #005047;
+  --color-outline-variant: #5b3f44;
+  --color-tertiary-fixed-dim: #3cddc7;
+  --color-primary-fixed: #ffd9df;
+  --color-on-surface: #e1e1ef;
+  --color-primary-container: #ff4c83;
+  --color-surface-tint: #ffb1c0;
+  --color-on-tertiary: #003731;
+  --color-inverse-surface: #e1e1ef;
+  --color-on-secondary: #490080;
+  --color-on-tertiary-container: #00302a;
+  --color-on-surface-variant: #e4bdc3;
+  --color-on-primary-fixed: #3f0017;
+  --color-outline: #ab888e;
+}
+
+body {
+  background-color: #0f111a;
+  color: #e1e1ef;
+  font-family: var(--font-sans);
+}
+
+.glass-card {
+  background: rgba(29, 31, 41, 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glow-pink {
+  filter: drop-shadow(0 0 15px rgba(255, 177, 192, 0.4));
+}
+
+.glow-purple {
+  filter: drop-shadow(0 0 15px rgba(221, 183, 255, 0.4));
+}
+
+.glow-teal {
+  filter: drop-shadow(0 0 15px rgba(60, 221, 199, 0.3));
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

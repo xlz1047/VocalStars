@@ -1,0 +1,8 @@
+{
+  "name": "VocalStars",
+  "description": "VocalStars is an advanced, high-fidelity real-time interactive vocal coaching studio and karaoke feedback dashboard.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

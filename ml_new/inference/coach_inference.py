@@ -571,9 +571,10 @@ def _build_coaching_text(
     # ── Summary ───────────────────────────────────────────────────────────
     if score >= 80:
         vib_note = f" Vibrato detected on {n_vib} note(s)." if n_vib > 0 else ""
+        quality_desc = 'clear' if (voice_quality and voice_quality.breathiness == 'clear') else 'good'
         summary = (
             f"Excellent singing! Pitch {pitch_accuracy:.0%} accurate, "
-            f"voice quality {"clear" if (voice_quality and voice_quality.breathiness == "clear") else "good"}."
+            f"voice quality {quality_desc}."
             + vib_note
         )
     elif score >= 65:
