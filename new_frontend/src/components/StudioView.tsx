@@ -229,7 +229,7 @@ export default function StudioView({
             audioBlob,
             song.title,
             song.artist,
-            process.env.REACT_APP_API_URL || "http://localhost:8000"
+            import.meta.env.VITE_API_URL || "http://localhost:8000"
           );
 
           // Convert ML analysis to PerformanceResult

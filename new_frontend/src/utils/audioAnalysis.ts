@@ -154,7 +154,7 @@ export function mlAnalysisToPerformanceResult(
     overallScore: mlAnalysis.score,
     intonation: Math.round(mlAnalysis.pitchAccuracy),
     rhythm: Math.round(mlAnalysis.onsetClarity * 100),
-    timbre: Math.round((mlAnalysis.technique_confidence * 100) || 75),
+    timbre: Math.round((mlAnalysis.techniqueConfidence || 75)),
     dynamics: Math.round((mlAnalysis.voiceQuality?.hnrDb || 20) * 2.5), // Normalize HNR to 0-100
     coachingNotes: [
       {

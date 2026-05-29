@@ -143,6 +143,10 @@ def summarize_result(result: Any, audio: np.ndarray, sr: int) -> dict[str, Any]:
     onset = np.asarray(result.onset_frames, dtype=bool)
     voiced_pitch = pitch[(pitch > 0) & voiced]
     duration_s = float(len(audio) / sr) if sr > 0 else float(len(pitch) * result.hop_s)
+    diagnostics = clean_json(getattr(result, "diagnostics", {}) or {})
+    analysis_validity = clean_json(getattr(result, "analysis_validity", {}) or {})
+    task_config = clean_json(getattr(result, "task_config", {}) or {})
+    task_analysis = clean_json(getattr(result, "task_analysis", {}) or {})
 
     summary = {
         "duration_s": round(duration_s, 3),
@@ -163,15 +167,28 @@ def summarize_result(result: Any, audio: np.ndarray, sr: int) -> dict[str, Any]:
         "onset_count": int(result.onset_count),
         "onset_frame_ratio": float(onset.mean()) if len(onset) else 0.0,
         "onset_clarity": float(result.onset_clarity),
-        "score": int(result.score),
+        "score": int(result.score) if result.score is not None else None,
+        "full_song_score": (
+            int(result.full_song_score) if result.full_song_score is not None else None
+        ),
+        "diagnostic_score": (
+            int(result.diagnostic_score) if result.diagnostic_score is not None else None
+        ),
+        "score_status": str(result.score_status),
+        "score_caveat": result.score_caveat,
         "technique": str(result.technique),
         "technique_confidence": float(result.technique_confidence),
         "note_count": int(len(result.notes)),
         "voice_quality_available": result.voice_quality is not None,
+        "diagnostics_available": bool(diagnostics),
+        "diagnostics": diagnostics,
+        "analysis_validity": analysis_validity,
+        "task_config": task_config,
+        "task_analysis": task_analysis,
         "confidence_curve_available": False,
         "confidence_curve_note": (
-            "analyse_recording() returns thresholded voiced/breath/onset arrays, "
-            "but not raw per-frame confidence probabilities."
+            "analyse_recording() now returns summary diagnostics for raw "
+            "probabilities/confidence, but not frame-level confidence arrays."
         ),
     }
     return summary
@@ -279,7 +296,7 @@ def make_plot_svg(
 
     svg.append(
         '<text x="70" y="690" font-family="Arial" font-size="12" fill="#777">'
-        "Confidence curve unavailable: existing inference result exposes thresholded booleans, not raw probabilities."
+        "Confidence curve unavailable: inference exposes summary diagnostics, not raw probability arrays."
         "</text>"
     )
     svg.append("</svg>")
@@ -330,6 +347,10 @@ def write_markdown_report(
         f"- Audio used for inference: `{conversion.get('used_audio_path')}`",
         f"- Converted: `{conversion.get('converted')}`",
         f"- Score: `{summary.get('score')}`",
+        f"- Full-song score: `{summary.get('full_song_score')}`",
+        f"- Diagnostic score: `{summary.get('diagnostic_score')}`",
+        f"- Score status: `{summary.get('score_status')}`",
+        f"- Task type: `{(summary.get('task_config') or {}).get('task_type')}`",
         f"- Summary: {result.summary if error is None else 'Inference failed'}",
         "",
         "## Artifacts",
@@ -351,6 +372,10 @@ def write_markdown_report(
         "max_f0_hz",
         "pitch_accuracy",
         "pitch_drift_cents",
+        "full_song_score",
+        "diagnostic_score",
+        "score_status",
+        "score_caveat",
         "breath_count",
         "onset_count",
         "onset_clarity",
@@ -362,6 +387,141 @@ def write_markdown_report(
     ]
     for key in metric_keys:
         lines.append(f"- `{key}`: `{summary.get(key)}`")
+
+    analysis_validity = summary.get("analysis_validity") or {}
+    if analysis_validity:
+        lines += [
+            "",
+            "## Analysis Validity",
+            "",
+            f"- `is_analyzable`: `{analysis_validity.get('is_analyzable')}`",
+            f"- `input_type`: `{analysis_validity.get('input_type')}`",
+            f"- `confidence`: `{_format_value(analysis_validity.get('confidence'))}`",
+            f"- `reason_codes`: `{analysis_validity.get('reason_codes')}`",
+            "",
+            "### Validity Metrics",
+            "",
+            "| Metric | Value |",
+            "| --- | ---: |",
+        ]
+        validity_metrics = analysis_validity.get("summary_metrics") or {}
+        for key in [
+            "audio_rms",
+            "voiced_frame_ratio",
+            "voiced_probability_mean",
+            "voiced_probability_near_threshold_fraction",
+            "pitch_confidence_mean",
+            "pitch_confidence_margin_mean",
+            "pitch_normalized_entropy_mean",
+            "f0_trimmed_range_hz",
+            "low_frequency_f0_ratio",
+            "octave_jump_rate_per_second",
+            "semitone_jump_rate_per_second",
+            "notes_per_second",
+            "short_note_ratio_lt_300ms",
+            "onsets_per_second",
+        ]:
+            lines.append(f"| `{key}` | `{_format_value(validity_metrics.get(key))}` |")
+
+    task_analysis = summary.get("task_analysis") or {}
+    if task_analysis:
+        lines += [
+            "",
+            "## Task Analysis",
+            "",
+            f"- `task_type`: `{task_analysis.get('task_type')}`",
+            f"- `detected_input_type`: `{task_analysis.get('detected_input_type')}`",
+            f"- `status`: `{task_analysis.get('status')}`",
+            f"- `summary`: {task_analysis.get('summary')}",
+            f"- `caveats`: `{task_analysis.get('caveats')}`",
+        ]
+
+    diagnostics = summary.get("diagnostics") or {}
+    if diagnostics:
+        lines += [
+            "",
+            "## P0 Diagnostics",
+            "",
+        ]
+        diagnostic_rows = [
+            ("source", _get_nested(diagnostics, "source")),
+            ("voiced_probability.mean", _get_nested(diagnostics, "voiced_probability.mean")),
+            ("voiced_probability.median", _get_nested(diagnostics, "voiced_probability.median")),
+            ("voiced_probability.min", _get_nested(diagnostics, "voiced_probability.min")),
+            ("voiced_probability.max", _get_nested(diagnostics, "voiced_probability.max")),
+            (
+                "voiced_probability.near_threshold_fraction",
+                _get_nested(diagnostics, "voiced_probability.near_threshold_fraction"),
+            ),
+            (
+                "pitch_confidence.max_softmax_probability.mean",
+                _get_nested(diagnostics, "pitch_confidence.max_softmax_probability.mean"),
+            ),
+            (
+                "pitch_confidence.top1_top2_margin.mean",
+                _get_nested(diagnostics, "pitch_confidence.top1_top2_margin.mean"),
+            ),
+            (
+                "pitch_confidence.normalized_entropy.mean",
+                _get_nested(diagnostics, "pitch_confidence.normalized_entropy.mean"),
+            ),
+            ("onset_probability.mean", _get_nested(diagnostics, "onset_probability.mean")),
+            ("breath_probability.mean", _get_nested(diagnostics, "breath_probability.mean")),
+            ("f0.median_hz", _get_nested(diagnostics, "f0.median_hz")),
+            ("f0.full_range_hz.min", _get_nested(diagnostics, "f0.full_range_hz.min")),
+            ("f0.full_range_hz.max", _get_nested(diagnostics, "f0.full_range_hz.max")),
+            ("f0.trimmed_range_hz.p05", _get_nested(diagnostics, "f0.trimmed_range_hz.p05")),
+            ("f0.trimmed_range_hz.p95", _get_nested(diagnostics, "f0.trimmed_range_hz.p95")),
+            ("f0.low_frequency_f0_ratio", _get_nested(diagnostics, "f0.low_frequency_f0_ratio")),
+            ("f0_jumps.octave_jump_count", _get_nested(diagnostics, "f0_jumps.octave_jump_count")),
+            (
+                "f0_jumps.octave_jump_rate_per_second",
+                _get_nested(diagnostics, "f0_jumps.octave_jump_rate_per_second"),
+            ),
+            ("f0_jumps.semitone_jump_count", _get_nested(diagnostics, "f0_jumps.semitone_jump_count")),
+            (
+                "f0_jumps.semitone_jump_rate_per_second",
+                _get_nested(diagnostics, "f0_jumps.semitone_jump_rate_per_second"),
+            ),
+            ("note_fragmentation.notes_per_second", _get_nested(diagnostics, "note_fragmentation.notes_per_second")),
+            (
+                "note_fragmentation.notes_per_voiced_second",
+                _get_nested(diagnostics, "note_fragmentation.notes_per_voiced_second"),
+            ),
+            (
+                "note_fragmentation.median_note_duration_s",
+                _get_nested(diagnostics, "note_fragmentation.median_note_duration_s"),
+            ),
+            (
+                "note_fragmentation.short_note_ratio_lt_300ms",
+                _get_nested(diagnostics, "note_fragmentation.short_note_ratio_lt_300ms"),
+            ),
+            ("note_postprocessing.raw_note_count", _get_nested(diagnostics, "note_postprocessing.raw_note_count")),
+            (
+                "note_postprocessing.postprocessed_note_count",
+                _get_nested(diagnostics, "note_postprocessing.postprocessed_note_count"),
+            ),
+            ("note_postprocessing.merge_count", _get_nested(diagnostics, "note_postprocessing.merge_count")),
+            (
+                "note_postprocessing.octave_jump_count",
+                _get_nested(diagnostics, "note_postprocessing.octave_jump_count"),
+            ),
+            (
+                "note_postprocessing.postprocessed_octave_jump_count",
+                _get_nested(diagnostics, "note_postprocessing.postprocessed_octave_jump_count"),
+            ),
+            (
+                "note_postprocessing.f0_stability_cents",
+                _get_nested(diagnostics, "note_postprocessing.f0_stability_cents"),
+            ),
+            (
+                "note_postprocessing.fragmentation_index",
+                _get_nested(diagnostics, "note_postprocessing.fragmentation_index"),
+            ),
+        ]
+        lines += ["| Metric | Value |", "| --- | ---: |"]
+        for key, value in diagnostic_rows:
+            lines.append(f"| `{key}` | `{_format_value(value)}` |")
 
     lines += [
         "",
@@ -410,6 +570,7 @@ def evaluate_audio(
     output_dir: Path,
     checkpoint: Path | None,
     device: str,
+    task_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     sample_slug = audio_path.stem
@@ -441,6 +602,7 @@ def evaluate_audio(
         "device": device,
         "inference_entrypoint": "ml_new.inference.coach_inference.analyse_recording",
         "debug": debug,
+        "requested_task_config": task_config,
         "conversion": conversion,
         "artifacts": artifacts,
         "status": "error",
@@ -455,7 +617,12 @@ def evaluate_audio(
         return payload
 
     try:
-        result = analyse_recording(str(used_audio), checkpoint=checkpoint, device=device)
+        result = analyse_recording(
+            str(used_audio),
+            checkpoint=checkpoint,
+            device=device,
+            task_config=task_config,
+        )
         audio, sr, audio_error = load_waveform(used_audio)
         summary = summarize_result(result, audio, sr)
         if audio_error:
@@ -467,9 +634,9 @@ def evaluate_audio(
                 "summary_metrics": summary,
                 "result": clean_json(result),
                 "model_output_limitations": [
-                    "No raw per-frame pitch confidence is exposed by CoachingResult.",
-                    "No raw per-frame VAD probability is exposed by CoachingResult.",
-                    "Breath/onset arrays are thresholded booleans, not calibrated probabilities.",
+                    "Raw probability/confidence summaries are exposed in result.diagnostics.",
+                    "Frame-level raw probability arrays are still not exposed in public reports.",
+                    "Validity gating is applied as postprocessing; raw model outputs remain present.",
                 ],
             }
         )
@@ -501,6 +668,11 @@ def parse_args() -> argparse.Namespace:
         help="UnifiedVocalModel checkpoint. Use an empty string for fallback mode.",
     )
     parser.add_argument("--device", default="cpu", help="Torch device, e.g. cpu, mps, cuda")
+    parser.add_argument(
+        "--task-config",
+        default=None,
+        help="Optional JSON task_config object.",
+    )
     return parser.parse_args()
 
 
@@ -511,9 +683,27 @@ def main() -> int:
         checkpoint = None
     elif checkpoint is not None and not checkpoint.exists():
         print(f"warning: checkpoint does not exist, inference will use fallback: {checkpoint}", file=sys.stderr)
-    result = evaluate_audio(args.audio, args.output_dir, checkpoint, args.device)
+    task_config = json.loads(args.task_config) if args.task_config else None
+    result = evaluate_audio(args.audio, args.output_dir, checkpoint, args.device, task_config)
     print(json.dumps({"status": result["status"], "sample": result["sample"], "artifacts": result["artifacts"]}, indent=2))
     return 0 if result["status"] == "success" else 1
+
+
+def _get_nested(obj: dict[str, Any], dotted_path: str) -> Any:
+    cur: Any = obj
+    for part in dotted_path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def _format_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    return str(value)
 
 
 if __name__ == "__main__":

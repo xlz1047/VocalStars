@@ -10,6 +10,16 @@
     "device_used": "cpu",
     "model_stack_used": "ml_new"
   },
+  "requested_task_config": {
+    "task_type": "sustained_note",
+    "skill_focus": "pitch_stability",
+    "target": {
+      "vowel": "aa"
+    },
+    "reference": null,
+    "scoring_mode": "diagnostic",
+    "strictness": "normal"
+  },
   "conversion": {
     "input_path": "samples/03_sustained_aaa.wav",
     "input_extension": ".wav",
@@ -45,13 +55,276 @@
     "onset_count": 6,
     "onset_frame_ratio": 0.8544668587896254,
     "onset_clarity": 0.3978387415409088,
-    "score": 71,
-    "technique": "vocal_fry",
-    "technique_confidence": 0.9082742929458618,
-    "note_count": 14,
+    "score": 95,
+    "full_song_score": null,
+    "diagnostic_score": 95,
+    "score_status": "diagnostic_sustained_tone_only",
+    "score_caveat": "Diagnostic sustained-note score only; no reference melody was evaluated.",
+    "technique": "not_applicable",
+    "technique_confidence": 0.0,
+    "note_count": 3,
     "voice_quality_available": true,
+    "diagnostics_available": true,
+    "diagnostics": {
+      "source": "checkpoint",
+      "thresholds": {
+        "voiced": 0.5,
+        "breath": 0.35,
+        "onset": 0.3
+      },
+      "voiced_probability": {
+        "mean": 0.6935769715896601,
+        "median": 0.6863743960857391,
+        "min": 0.39619359374046326,
+        "max": 0.8914881944656372,
+        "percentiles": {
+          "p01": 0.5024720853567124,
+          "p05": 0.5665212333202362,
+          "p10": 0.5842042684555053,
+          "p25": 0.6221798658370972,
+          "p50": 0.6863743960857391,
+          "p75": 0.7486364394426346,
+          "p90": 0.8453348100185394,
+          "p95": 0.8669559508562088,
+          "p99": 0.8783353579044342
+        },
+        "near_threshold_fraction": 0.027377521613832854,
+        "near_threshold_margin": 0.05
+      },
+      "pitch_confidence": {
+        "max_softmax_probability": {
+          "mean": 0.21132504480813097,
+          "median": 0.18648440390825272,
+          "min": 0.030072031542658806,
+          "max": 0.4270501732826233,
+          "percentiles": {
+            "p01": 0.07729576021432877,
+            "p05": 0.10773830451071262,
+            "p10": 0.12890069484710692,
+            "p25": 0.14736635982990265,
+            "p50": 0.18648440390825272,
+            "p75": 0.25715263187885284,
+            "p90": 0.3649781525135041,
+            "p95": 0.38248913437128074,
+            "p99": 0.4115162947773935
+          }
+        },
+        "top1_top2_margin": {
+          "mean": 0.04383072499132122,
+          "median": 0.03187808394432068,
+          "min": 0.00014643371105194092,
+          "max": 0.18455688655376434,
+          "percentiles": {
+            "p01": 0.0008837161958217621,
+            "p05": 0.0028274063020944594,
+            "p10": 0.005687166750431061,
+            "p25": 0.013688202947378159,
+            "p50": 0.03187808394432068,
+            "p75": 0.06349361315369606,
+            "p90": 0.09807508513331414,
+            "p95": 0.125168339908123,
+            "p99": 0.16729954198002828
+          }
+        },
+        "entropy": {
+          "mean": 2.8381524761059786,
+          "median": 2.938626289367676,
+          "min": 1.4795637130737305,
+          "max": 4.8026957511901855,
+          "percentiles": {
+            "p01": 1.5114499199390412,
+            "p05": 1.5506060600280762,
+            "p10": 1.6297907471656798,
+            "p25": 2.5870220065116882,
+            "p50": 2.938626289367676,
+            "p75": 3.296955168247223,
+            "p90": 3.4339641332626343,
+            "p95": 3.577078068256378,
+            "p99": 4.028016853332522
+          }
+        },
+        "normalized_entropy": {
+          "mean": 0.5465388135507894,
+          "median": 0.5658869067752638,
+          "min": 0.28491739014162887,
+          "max": 0.9248479987594883,
+          "percentiles": {
+            "p01": 0.2910576697127646,
+            "p05": 0.2985979095440127,
+            "p10": 0.31384638732099046,
+            "p25": 0.4981789914291709,
+            "p50": 0.5658869067752638,
+            "p75": 0.6348897676055285,
+            "p90": 0.6612733808242528,
+            "p95": 0.6888326190584796,
+            "p99": 0.7756692321912926
+          }
+        }
+      },
+      "onset_probability": {
+        "mean": 0.3743158827941081,
+        "median": 0.3965401351451874,
+        "min": 0.18013857305049896,
+        "max": 0.5019333362579346,
+        "percentiles": {
+          "p01": 0.18793686538934706,
+          "p05": 0.22494189962744712,
+          "p10": 0.2527005225419998,
+          "p25": 0.341499499976635,
+          "p50": 0.3965401351451874,
+          "p75": 0.42562147974967957,
+          "p90": 0.44469490349292756,
+          "p95": 0.4532783180475235,
+          "p99": 0.48377300828695313
+        }
+      },
+      "breath_probability": {
+        "mean": 0.5479648811930539,
+        "median": 0.5804265141487122,
+        "min": 0.17188860476016998,
+        "max": 0.741714358329773,
+        "percentiles": {
+          "p01": 0.17677730277180673,
+          "p05": 0.2129865251481533,
+          "p10": 0.27504069805145265,
+          "p25": 0.5449872612953186,
+          "p50": 0.5804265141487122,
+          "p75": 0.6134413033723831,
+          "p90": 0.6396978259086609,
+          "p95": 0.6509064912796021,
+          "p99": 0.6742902725934984
+        }
+      },
+      "f0": {
+        "median_hz": 288.03643798828125,
+        "mean_hz": 314.2233784771382,
+        "full_range_hz": {
+          "min": 79.28612518310547,
+          "max": 659.1907958984375
+        },
+        "trimmed_range_hz": {
+          "p05": 84.00072479248047,
+          "p95": 554.3110961914062
+        },
+        "low_frequency_threshold_hz": 80.0,
+        "low_frequency_f0_ratio": 0.002911208151382824
+      },
+      "f0_jumps": {
+        "voiced_transition_count": 683,
+        "octave_jump_count": 0,
+        "semitone_jump_count": 6,
+        "max_abs_semitone_jump": 11.6666660673898,
+        "median_abs_semitone_jump": 0.0,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.8645533141210374
+      },
+      "note_fragmentation": {
+        "note_count": 3,
+        "notes_per_second": 0.4322766570605187,
+        "notes_per_voiced_second": 0.4366812227074236,
+        "median_note_duration_s": 1.08,
+        "short_note_ratio_lt_200ms": 0.0,
+        "short_note_ratio_lt_300ms": 0.0,
+        "onset_count": 6,
+        "onsets_per_second": 0.8645533141210374
+      },
+      "note_postprocessing": {
+        "isolated_spike_count": 5,
+        "octave_jump_count": 23,
+        "postprocessed_octave_jump_count": 0,
+        "semitone_jump_count": 31,
+        "postprocessed_semitone_jump_count": 6,
+        "octave_correction_count": 615,
+        "f0_stability_cents": 810.873232830505,
+        "raw_note_count": 14,
+        "initial_postprocessed_note_count": 4,
+        "postprocessed_note_count": 3,
+        "merge_count": 1,
+        "min_duration_s": 0.2,
+        "merge_gap_s": 0.08,
+        "merge_pitch_semitones": 1.0,
+        "fragmentation_index": 0.4322766570605187,
+        "raw_fragmentation_index": 2.0172910662824206
+      },
+      "raw_model_outputs": {
+        "technique": "vocal_fry",
+        "technique_confidence": 0.9082742929458618
+      }
+    },
+    "analysis_validity": {
+      "is_analyzable": false,
+      "input_type": "diagnostic_sustained_tone",
+      "confidence": 0.7,
+      "reason_codes": [
+        "continuous_voicing",
+        "fragmented_f0_tracking"
+      ],
+      "summary_metrics": {
+        "duration_s": 6.94,
+        "audio_rms": 0.018262263387441635,
+        "voiced_frame_ratio": 0.9899135446685879,
+        "voiced_duration_s": 6.87,
+        "voiced_probability_mean": 0.6935769715896601,
+        "voiced_probability_near_threshold_fraction": 0.027377521613832854,
+        "pitch_confidence_mean": 0.21132504480813097,
+        "pitch_confidence_margin_mean": 0.04383072499132122,
+        "pitch_normalized_entropy_mean": 0.5465388135507894,
+        "f0_trimmed_range_hz": 470.3103713989258,
+        "low_frequency_f0_ratio": 0.002911208151382824,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.8645533141210374,
+        "raw_note_count": 14,
+        "raw_fragmentation_index": 2.0172910662824206,
+        "raw_octave_jump_rate_per_second": 3.314121037463977,
+        "raw_semitone_jump_rate_per_second": 4.46685878962536,
+        "note_count": 3,
+        "notes_per_second": 0.4322766570605187,
+        "short_note_ratio_lt_300ms": 0.0,
+        "onset_count": 6,
+        "onsets_per_second": 0.8645533141210374
+      }
+    },
+    "task_config": {
+      "task_type": "sustained_note",
+      "skill_focus": "pitch_stability",
+      "target": {
+        "vowel": "aa"
+      },
+      "reference": null,
+      "scoring_mode": "diagnostic",
+      "strictness": "normal"
+    },
+    "task_analysis": {
+      "task_type": "sustained_note",
+      "provided_task_config": {
+        "task_type": "sustained_note",
+        "skill_focus": "pitch_stability",
+        "target": {
+          "vowel": "aa"
+        },
+        "reference": null,
+        "scoring_mode": "diagnostic",
+        "strictness": "normal"
+      },
+      "detected_input_type": "diagnostic_sustained_tone",
+      "caveats": [
+        "Diagnostic sustained-note score only; no reference melody was evaluated."
+      ],
+      "status": "diagnostic_sustained_tone_only",
+      "summary": "Sustained-note diagnostic complete; full-song scoring was not generated.",
+      "scoring_components": {
+        "voicing_continuity": 29.69740634005764,
+        "pitch_stability": 21.397694524495677,
+        "pitch_drift": 19.954869548479717,
+        "dropout": 14.394812680115276,
+        "fragmentation": 9.088616714697405,
+        "pitch_drift_cents_abs": 0.16923919320106506,
+        "voiced_frame_ratio": 0.9899135446685879,
+        "short_note_ratio_lt_300ms": 0.0
+      }
+    },
     "confidence_curve_available": false,
-    "confidence_curve_note": "analyse_recording() returns thresholded voiced/breath/onset arrays, but not raw per-frame confidence probabilities."
+    "confidence_curve_note": "analyse_recording() now returns summary diagnostics for raw probabilities/confidence, but not frame-level confidence arrays."
   },
   "result": {
     "pitch_hz": [
@@ -2839,8 +3112,8 @@
       true
     ],
     "hop_s": 0.01,
-    "technique": "vocal_fry",
-    "technique_confidence": 0.9082742929458618,
+    "technique": "not_applicable",
+    "technique_confidence": 0.0,
     "all_technique_scores": {
       "belt": 7.000656478339806e-05,
       "breathy": 0.015916017815470695,
@@ -2875,127 +3148,28 @@
       {
         "start_s": 0.1,
         "duration_s": 0.62,
-        "pitch_hz": 84.08667755126953,
+        "pitch_hz": 84.13441467285156,
         "note_name": "E2",
-        "cents_error": 34.93474824883186,
-        "stability_cents": 23.514957427978516,
+        "cents_error": 35.917313888050884,
+        "stability_cents": 15.024907112121582,
         "vibrato": null
       },
       {
         "start_s": 0.79,
         "duration_s": 1.08,
-        "pitch_hz": 138.2625274658203,
-        "note_name": "C#3",
+        "pitch_hz": 553.0501098632812,
+        "note_name": "C#5",
         "cents_error": -4.1119840071647,
         "stability_cents": 15.527541160583496,
         "vibrato": null
       },
       {
         "start_s": 1.87,
-        "duration_s": 1.1,
-        "pitch_hz": 72.74163818359375,
-        "note_name": "D2",
-        "cents_error": -15.980242585454207,
-        "stability_cents": 29.381484985351562,
-        "vibrato": null
-      },
-      {
-        "start_s": 2.97,
-        "duration_s": 0.32,
-        "pitch_hz": 148.2451629638672,
-        "note_name": "D3",
-        "cents_error": 16.57781035704667,
-        "stability_cents": 16.66651153564453,
-        "vibrato": null
-      },
-      {
-        "start_s": 3.33,
-        "duration_s": 0.36,
-        "pitch_hz": 148.64154052734375,
-        "note_name": "D3",
-        "cents_error": 21.200602377333606,
-        "stability_cents": 16.010576248168945,
-        "vibrato": null
-      },
-      {
-        "start_s": 3.7,
-        "duration_s": 0.1,
-        "pitch_hz": 144.29818725585938,
-        "note_name": "D3",
-        "cents_error": -30.140417174085915,
-        "stability_cents": 10.000120162963867,
-        "vibrato": null
-      },
-      {
-        "start_s": 3.8000000000000003,
-        "duration_s": 0.37,
-        "pitch_hz": 72.80363464355469,
-        "note_name": "D2",
-        "cents_error": -14.505369691095742,
-        "stability_cents": 16.513866424560547,
-        "vibrato": null
-      },
-      {
-        "start_s": 4.18,
-        "duration_s": 0.16,
-        "pitch_hz": 72.00910949707031,
-        "note_name": "D2",
-        "cents_error": -33.502631249883024,
-        "stability_cents": 0.0,
-        "vibrato": null
-      },
-      {
-        "start_s": 4.44,
-        "duration_s": 1.27,
-        "pitch_hz": 141.8340606689453,
-        "note_name": "C#3",
-        "cents_error": 40.040606847903234,
-        "stability_cents": 13.449882507324219,
-        "vibrato": null
-      },
-      {
-        "start_s": 5.8500000000000005,
-        "duration_s": 0.26,
-        "pitch_hz": 72.27832794189453,
-        "note_name": "D2",
-        "cents_error": -27.042184138767418,
-        "stability_cents": 13.137194633483887,
-        "vibrato": null
-      },
-      {
-        "start_s": 6.11,
-        "duration_s": 0.18,
-        "pitch_hz": 142.797607421875,
-        "note_name": "D3",
-        "cents_error": -48.23805989406897,
-        "stability_cents": 16.56342124938965,
-        "vibrato": null
-      },
-      {
-        "start_s": 6.41,
-        "duration_s": 0.11,
-        "pitch_hz": 72.00910186767578,
-        "note_name": "D2",
-        "cents_error": -33.5028146748465,
-        "stability_cents": 1.4551915228366852e-11,
-        "vibrato": null
-      },
-      {
-        "start_s": 6.5200000000000005,
-        "duration_s": 0.16,
-        "pitch_hz": 142.30172729492188,
-        "note_name": "C#3",
-        "cents_error": 45.73958002851668,
-        "stability_cents": 16.137317657470703,
-        "vibrato": null
-      },
-      {
-        "start_s": 6.69,
-        "duration_s": 0.25,
-        "pitch_hz": 143.25778198242188,
-        "note_name": "D3",
-        "cents_error": -42.668015878305795,
-        "stability_cents": 24.07393455505371,
+        "duration_s": 5.07,
+        "pitch_hz": 289.3689270019531,
+        "note_name": "D4",
+        "cents_error": -25.512215554242466,
+        "stability_cents": 50.6066780090332,
         "vibrato": null
       }
     ],
@@ -3005,29 +3179,281 @@
       "shimmer_pct": 18.335496469769392
     },
     "vibrato_stats": {
-      "n_long_notes": 4,
+      "n_long_notes": 3,
       "n_vibrato_notes": 0,
       "mean_rate_hz": 0.0,
       "mean_depth_cents": 0.0
     },
-    "score": 71,
-    "summary": "Good foundation \u2014 pitch 100%, avg phrase 6.9 s. The issues below will make a clear difference.",
-    "issues": [
-      "Specific notes are consistently off: C#3 (+43 \u00a2, sharp), D3 (-40 \u00a2, flat), D2 (-34 \u00a2, flat).",
-      "Breathy voice quality detected (HNR 3 dB \u2014 air escaping before the cords fully close).",
-      "Vocal instability detected (jitter 6.9%, shimmer 18.3%). This can indicate tension, fatigue, or insufficient warm-up.",
-      "4 sustained note(s) detected but no vibrato found. Adding vibrato enriches long notes and shows vocal control."
-    ],
-    "exercises": [
-      "For those notes, imagine lifting the back of your tongue slightly and 'thinking' the pitch higher before you sing it.",
-      "Hum 'mmm' with lips lightly closed to build cord closure and forward resonance. Gradually open to 'mah' while keeping the buzz.",
-      "Rest the voice for 20 min, hydrate well, then warm up with gentle lip trills before attempting full-voice singing.",
-      "Practice a gentle hand-on-chest pulse while sustaining a note \u2014 this helps initiate the natural 5\u20136 Hz oscillation of healthy vibrato."
-    ]
+    "diagnostics": {
+      "source": "checkpoint",
+      "thresholds": {
+        "voiced": 0.5,
+        "breath": 0.35,
+        "onset": 0.3
+      },
+      "voiced_probability": {
+        "mean": 0.6935769715896601,
+        "median": 0.6863743960857391,
+        "min": 0.39619359374046326,
+        "max": 0.8914881944656372,
+        "percentiles": {
+          "p01": 0.5024720853567124,
+          "p05": 0.5665212333202362,
+          "p10": 0.5842042684555053,
+          "p25": 0.6221798658370972,
+          "p50": 0.6863743960857391,
+          "p75": 0.7486364394426346,
+          "p90": 0.8453348100185394,
+          "p95": 0.8669559508562088,
+          "p99": 0.8783353579044342
+        },
+        "near_threshold_fraction": 0.027377521613832854,
+        "near_threshold_margin": 0.05
+      },
+      "pitch_confidence": {
+        "max_softmax_probability": {
+          "mean": 0.21132504480813097,
+          "median": 0.18648440390825272,
+          "min": 0.030072031542658806,
+          "max": 0.4270501732826233,
+          "percentiles": {
+            "p01": 0.07729576021432877,
+            "p05": 0.10773830451071262,
+            "p10": 0.12890069484710692,
+            "p25": 0.14736635982990265,
+            "p50": 0.18648440390825272,
+            "p75": 0.25715263187885284,
+            "p90": 0.3649781525135041,
+            "p95": 0.38248913437128074,
+            "p99": 0.4115162947773935
+          }
+        },
+        "top1_top2_margin": {
+          "mean": 0.04383072499132122,
+          "median": 0.03187808394432068,
+          "min": 0.00014643371105194092,
+          "max": 0.18455688655376434,
+          "percentiles": {
+            "p01": 0.0008837161958217621,
+            "p05": 0.0028274063020944594,
+            "p10": 0.005687166750431061,
+            "p25": 0.013688202947378159,
+            "p50": 0.03187808394432068,
+            "p75": 0.06349361315369606,
+            "p90": 0.09807508513331414,
+            "p95": 0.125168339908123,
+            "p99": 0.16729954198002828
+          }
+        },
+        "entropy": {
+          "mean": 2.8381524761059786,
+          "median": 2.938626289367676,
+          "min": 1.4795637130737305,
+          "max": 4.8026957511901855,
+          "percentiles": {
+            "p01": 1.5114499199390412,
+            "p05": 1.5506060600280762,
+            "p10": 1.6297907471656798,
+            "p25": 2.5870220065116882,
+            "p50": 2.938626289367676,
+            "p75": 3.296955168247223,
+            "p90": 3.4339641332626343,
+            "p95": 3.577078068256378,
+            "p99": 4.028016853332522
+          }
+        },
+        "normalized_entropy": {
+          "mean": 0.5465388135507894,
+          "median": 0.5658869067752638,
+          "min": 0.28491739014162887,
+          "max": 0.9248479987594883,
+          "percentiles": {
+            "p01": 0.2910576697127646,
+            "p05": 0.2985979095440127,
+            "p10": 0.31384638732099046,
+            "p25": 0.4981789914291709,
+            "p50": 0.5658869067752638,
+            "p75": 0.6348897676055285,
+            "p90": 0.6612733808242528,
+            "p95": 0.6888326190584796,
+            "p99": 0.7756692321912926
+          }
+        }
+      },
+      "onset_probability": {
+        "mean": 0.3743158827941081,
+        "median": 0.3965401351451874,
+        "min": 0.18013857305049896,
+        "max": 0.5019333362579346,
+        "percentiles": {
+          "p01": 0.18793686538934706,
+          "p05": 0.22494189962744712,
+          "p10": 0.2527005225419998,
+          "p25": 0.341499499976635,
+          "p50": 0.3965401351451874,
+          "p75": 0.42562147974967957,
+          "p90": 0.44469490349292756,
+          "p95": 0.4532783180475235,
+          "p99": 0.48377300828695313
+        }
+      },
+      "breath_probability": {
+        "mean": 0.5479648811930539,
+        "median": 0.5804265141487122,
+        "min": 0.17188860476016998,
+        "max": 0.741714358329773,
+        "percentiles": {
+          "p01": 0.17677730277180673,
+          "p05": 0.2129865251481533,
+          "p10": 0.27504069805145265,
+          "p25": 0.5449872612953186,
+          "p50": 0.5804265141487122,
+          "p75": 0.6134413033723831,
+          "p90": 0.6396978259086609,
+          "p95": 0.6509064912796021,
+          "p99": 0.6742902725934984
+        }
+      },
+      "f0": {
+        "median_hz": 288.03643798828125,
+        "mean_hz": 314.2233784771382,
+        "full_range_hz": {
+          "min": 79.28612518310547,
+          "max": 659.1907958984375
+        },
+        "trimmed_range_hz": {
+          "p05": 84.00072479248047,
+          "p95": 554.3110961914062
+        },
+        "low_frequency_threshold_hz": 80.0,
+        "low_frequency_f0_ratio": 0.002911208151382824
+      },
+      "f0_jumps": {
+        "voiced_transition_count": 683,
+        "octave_jump_count": 0,
+        "semitone_jump_count": 6,
+        "max_abs_semitone_jump": 11.6666660673898,
+        "median_abs_semitone_jump": 0.0,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.8645533141210374
+      },
+      "note_fragmentation": {
+        "note_count": 3,
+        "notes_per_second": 0.4322766570605187,
+        "notes_per_voiced_second": 0.4366812227074236,
+        "median_note_duration_s": 1.08,
+        "short_note_ratio_lt_200ms": 0.0,
+        "short_note_ratio_lt_300ms": 0.0,
+        "onset_count": 6,
+        "onsets_per_second": 0.8645533141210374
+      },
+      "note_postprocessing": {
+        "isolated_spike_count": 5,
+        "octave_jump_count": 23,
+        "postprocessed_octave_jump_count": 0,
+        "semitone_jump_count": 31,
+        "postprocessed_semitone_jump_count": 6,
+        "octave_correction_count": 615,
+        "f0_stability_cents": 810.873232830505,
+        "raw_note_count": 14,
+        "initial_postprocessed_note_count": 4,
+        "postprocessed_note_count": 3,
+        "merge_count": 1,
+        "min_duration_s": 0.2,
+        "merge_gap_s": 0.08,
+        "merge_pitch_semitones": 1.0,
+        "fragmentation_index": 0.4322766570605187,
+        "raw_fragmentation_index": 2.0172910662824206
+      },
+      "raw_model_outputs": {
+        "technique": "vocal_fry",
+        "technique_confidence": 0.9082742929458618
+      }
+    },
+    "analysis_validity": {
+      "is_analyzable": false,
+      "input_type": "diagnostic_sustained_tone",
+      "confidence": 0.7,
+      "reason_codes": [
+        "continuous_voicing",
+        "fragmented_f0_tracking"
+      ],
+      "summary_metrics": {
+        "duration_s": 6.94,
+        "audio_rms": 0.018262263387441635,
+        "voiced_frame_ratio": 0.9899135446685879,
+        "voiced_duration_s": 6.87,
+        "voiced_probability_mean": 0.6935769715896601,
+        "voiced_probability_near_threshold_fraction": 0.027377521613832854,
+        "pitch_confidence_mean": 0.21132504480813097,
+        "pitch_confidence_margin_mean": 0.04383072499132122,
+        "pitch_normalized_entropy_mean": 0.5465388135507894,
+        "f0_trimmed_range_hz": 470.3103713989258,
+        "low_frequency_f0_ratio": 0.002911208151382824,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.8645533141210374,
+        "raw_note_count": 14,
+        "raw_fragmentation_index": 2.0172910662824206,
+        "raw_octave_jump_rate_per_second": 3.314121037463977,
+        "raw_semitone_jump_rate_per_second": 4.46685878962536,
+        "note_count": 3,
+        "notes_per_second": 0.4322766570605187,
+        "short_note_ratio_lt_300ms": 0.0,
+        "onset_count": 6,
+        "onsets_per_second": 0.8645533141210374
+      }
+    },
+    "task_config": {
+      "task_type": "sustained_note",
+      "skill_focus": "pitch_stability",
+      "target": {
+        "vowel": "aa"
+      },
+      "reference": null,
+      "scoring_mode": "diagnostic",
+      "strictness": "normal"
+    },
+    "task_analysis": {
+      "task_type": "sustained_note",
+      "provided_task_config": {
+        "task_type": "sustained_note",
+        "skill_focus": "pitch_stability",
+        "target": {
+          "vowel": "aa"
+        },
+        "reference": null,
+        "scoring_mode": "diagnostic",
+        "strictness": "normal"
+      },
+      "detected_input_type": "diagnostic_sustained_tone",
+      "caveats": [
+        "Diagnostic sustained-note score only; no reference melody was evaluated."
+      ],
+      "status": "diagnostic_sustained_tone_only",
+      "summary": "Sustained-note diagnostic complete; full-song scoring was not generated.",
+      "scoring_components": {
+        "voicing_continuity": 29.69740634005764,
+        "pitch_stability": 21.397694524495677,
+        "pitch_drift": 19.954869548479717,
+        "dropout": 14.394812680115276,
+        "fragmentation": 9.088616714697405,
+        "pitch_drift_cents_abs": 0.16923919320106506,
+        "voiced_frame_ratio": 0.9899135446685879,
+        "short_note_ratio_lt_300ms": 0.0
+      }
+    },
+    "score": 95,
+    "full_song_score": null,
+    "diagnostic_score": 95,
+    "score_status": "diagnostic_sustained_tone_only",
+    "score_caveat": "Diagnostic sustained-note score only; no reference melody was evaluated.",
+    "summary": "Sustained-note diagnostic complete; full-song scoring was not generated.",
+    "issues": [],
+    "exercises": []
   },
   "model_output_limitations": [
-    "No raw per-frame pitch confidence is exposed by CoachingResult.",
-    "No raw per-frame VAD probability is exposed by CoachingResult.",
-    "Breath/onset arrays are thresholded booleans, not calibrated probabilities."
+    "Raw probability/confidence summaries are exposed in result.diagnostics.",
+    "Frame-level raw probability arrays are still not exposed in public reports.",
+    "Validity gating is applied as postprocessing; raw model outputs remain present."
   ]
 }

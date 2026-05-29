@@ -10,6 +10,14 @@
     "device_used": "cpu",
     "model_stack_used": "ml_new"
   },
+  "requested_task_config": {
+    "task_type": "free_singing",
+    "skill_focus": "general",
+    "target": null,
+    "reference": null,
+    "scoring_mode": "general",
+    "strictness": "normal"
+  },
   "conversion": {
     "input_path": "samples/05_twinkle_twinkle.wav",
     "input_extension": ".wav",
@@ -47,12 +55,261 @@
     "onset_frame_ratio": 0.308411214953271,
     "onset_clarity": 0.40005308389663696,
     "score": 78,
+    "full_song_score": 78,
+    "diagnostic_score": null,
+    "score_status": "free_singing_general_feedback",
+    "score_caveat": "Score is based on detected pitch and timing features, not a reference melody.",
     "technique": "breathy",
     "technique_confidence": 0.351906418800354,
-    "note_count": 12,
+    "note_count": 7,
     "voice_quality_available": true,
+    "diagnostics_available": true,
+    "diagnostics": {
+      "source": "checkpoint",
+      "thresholds": {
+        "voiced": 0.5,
+        "breath": 0.35,
+        "onset": 0.3
+      },
+      "voiced_probability": {
+        "mean": 0.8199214041929379,
+        "median": 0.9059440195560455,
+        "min": 0.25432640314102173,
+        "max": 0.9669171571731567,
+        "percentiles": {
+          "p01": 0.3210832253098488,
+          "p05": 0.469720758497715,
+          "p10": 0.5285507440567017,
+          "p25": 0.7457852810621262,
+          "p50": 0.9059440195560455,
+          "p75": 0.9355699568986893,
+          "p90": 0.9484266042709351,
+          "p95": 0.9555130451917648,
+          "p99": 0.9642032623291016
+        },
+        "near_threshold_fraction": 0.0852803738317757,
+        "near_threshold_margin": 0.05
+      },
+      "pitch_confidence": {
+        "max_softmax_probability": {
+          "mean": 0.31103008042664104,
+          "median": 0.3668133169412613,
+          "min": 0.02616812475025654,
+          "max": 0.45401883125305176,
+          "percentiles": {
+            "p01": 0.0632097564637661,
+            "p05": 0.0856748279184103,
+            "p10": 0.10034456476569176,
+            "p25": 0.23557787016034126,
+            "p50": 0.3668133169412613,
+            "p75": 0.3933471664786339,
+            "p90": 0.41132985055446625,
+            "p95": 0.4204564094543457,
+            "p99": 0.43239230662584305
+          }
+        },
+        "top1_top2_margin": {
+          "mean": 0.06253993104725519,
+          "median": 0.05144128203392029,
+          "min": 4.616379737854004e-05,
+          "max": 0.2074008584022522,
+          "percentiles": {
+            "p01": 0.0005962349474430086,
+            "p05": 0.003219183534383774,
+            "p10": 0.006010578945279121,
+            "p25": 0.0182032510638237,
+            "p50": 0.05144128203392029,
+            "p75": 0.09869521856307983,
+            "p90": 0.13851304352283478,
+            "p95": 0.1571425125002861,
+            "p99": 0.18789177760481857
+          }
+        },
+        "entropy": {
+          "mean": 1.9943098946709499,
+          "median": 1.4772651195526123,
+          "min": 1.3082064390182495,
+          "max": 4.876398086547852,
+          "percentiles": {
+            "p01": 1.3415384829044341,
+            "p05": 1.3672692775726318,
+            "p10": 1.3837197422981262,
+            "p25": 1.4168248772621155,
+            "p50": 1.4772651195526123,
+            "p75": 2.194427251815796,
+            "p90": 3.6735986471176147,
+            "p95": 3.8844343423843384,
+            "p99": 4.136813092231751
+          }
+        },
+        "normalized_entropy": {
+          "mean": 0.38404129900079415,
+          "median": 0.28447475339591355,
+          "min": 0.25191937398709335,
+          "max": 0.939040748184131,
+          "percentiles": {
+            "p01": 0.2583380762492681,
+            "p05": 0.26329301722163273,
+            "p10": 0.26646085881898285,
+            "p25": 0.2728358655664998,
+            "p50": 0.28447475339591355,
+            "p75": 0.42257760170674497,
+            "p90": 0.7074194437968154,
+            "p95": 0.7480197609803831,
+            "p99": 0.796619962579237
+          }
+        }
+      },
+      "onset_probability": {
+        "mean": 0.20948245252317219,
+        "median": 0.14490757137537003,
+        "min": 0.04523936286568642,
+        "max": 0.5748579502105713,
+        "percentiles": {
+          "p01": 0.0504037119448185,
+          "p05": 0.06499743089079857,
+          "p10": 0.0752074308693409,
+          "p25": 0.09021017141640186,
+          "p50": 0.14490757137537003,
+          "p75": 0.3479270860552788,
+          "p90": 0.4196905642747879,
+          "p95": 0.44097842276096344,
+          "p99": 0.5161772280931477
+        }
+      },
+      "breath_probability": {
+        "mean": 0.27744579948833054,
+        "median": 0.2051214650273323,
+        "min": 0.08586270362138748,
+        "max": 0.6489938497543335,
+        "percentiles": {
+          "p01": 0.09086771123111248,
+          "p05": 0.10441522486507893,
+          "p10": 0.11691701412200928,
+          "p25": 0.14688921347260475,
+          "p50": 0.2051214650273323,
+          "p75": 0.4280971959233284,
+          "p90": 0.5210434794425964,
+          "p95": 0.5778098255395889,
+          "p99": 0.6388720780611039
+        }
+      },
+      "f0": {
+        "median_hz": 161.65499877929688,
+        "mean_hz": 154.01176167131217,
+        "full_range_hz": {
+          "min": 65.4000015258789,
+          "max": 237.58993530273438
+        },
+        "trimmed_range_hz": {
+          "p05": 73.40902709960938,
+          "p95": 228.61468505859375
+        },
+        "low_frequency_threshold_hz": 80.0,
+        "low_frequency_f0_ratio": 0.15769712140175218
+      },
+      "f0_jumps": {
+        "voiced_transition_count": 791,
+        "octave_jump_count": 0,
+        "semitone_jump_count": 8,
+        "max_abs_semitone_jump": 8.333333454982338,
+        "median_abs_semitone_jump": 0.0,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.9345794392523364
+      },
+      "note_fragmentation": {
+        "note_count": 7,
+        "notes_per_second": 0.8177570093457943,
+        "notes_per_voiced_second": 0.8760951188986232,
+        "median_note_duration_s": 0.6,
+        "short_note_ratio_lt_200ms": 0.0,
+        "short_note_ratio_lt_300ms": 0.14285714285714285,
+        "onset_count": 10,
+        "onsets_per_second": 1.1682242990654206
+      },
+      "note_postprocessing": {
+        "isolated_spike_count": 0,
+        "octave_jump_count": 4,
+        "postprocessed_octave_jump_count": 0,
+        "semitone_jump_count": 15,
+        "postprocessed_semitone_jump_count": 8,
+        "octave_correction_count": 178,
+        "f0_stability_cents": 664.2101341972611,
+        "raw_note_count": 12,
+        "initial_postprocessed_note_count": 7,
+        "postprocessed_note_count": 7,
+        "merge_count": 0,
+        "min_duration_s": 0.2,
+        "merge_gap_s": 0.08,
+        "merge_pitch_semitones": 1.0,
+        "fragmentation_index": 0.8177570093457943,
+        "raw_fragmentation_index": 1.4018691588785046
+      },
+      "raw_model_outputs": {
+        "technique": "breathy",
+        "technique_confidence": 0.351906418800354
+      }
+    },
+    "analysis_validity": {
+      "is_analyzable": true,
+      "input_type": "analyzable_singing",
+      "confidence": 0.75,
+      "reason_codes": [
+        "passes_current_postprocessing_checks"
+      ],
+      "summary_metrics": {
+        "duration_s": 8.56,
+        "audio_rms": 0.020151298493146896,
+        "voiced_frame_ratio": 0.9334112149532711,
+        "voiced_duration_s": 7.99,
+        "voiced_probability_mean": 0.8199214041929379,
+        "voiced_probability_near_threshold_fraction": 0.0852803738317757,
+        "pitch_confidence_mean": 0.31103008042664104,
+        "pitch_confidence_margin_mean": 0.06253993104725519,
+        "pitch_normalized_entropy_mean": 0.38404129900079415,
+        "f0_trimmed_range_hz": 155.20565795898438,
+        "low_frequency_f0_ratio": 0.15769712140175218,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.9345794392523364,
+        "raw_note_count": 12,
+        "raw_fragmentation_index": 1.4018691588785046,
+        "raw_octave_jump_rate_per_second": 0.4672897196261682,
+        "raw_semitone_jump_rate_per_second": 1.7523364485981308,
+        "note_count": 7,
+        "notes_per_second": 0.8177570093457943,
+        "short_note_ratio_lt_300ms": 0.14285714285714285,
+        "onset_count": 10,
+        "onsets_per_second": 1.1682242990654206
+      }
+    },
+    "task_config": {
+      "task_type": "free_singing",
+      "skill_focus": "general",
+      "target": null,
+      "reference": null,
+      "scoring_mode": "general",
+      "strictness": "normal"
+    },
+    "task_analysis": {
+      "task_type": "free_singing",
+      "provided_task_config": {
+        "task_type": "free_singing",
+        "skill_focus": "general",
+        "target": null,
+        "reference": null,
+        "scoring_mode": "general",
+        "strictness": "normal"
+      },
+      "detected_input_type": "analyzable_singing",
+      "caveats": [
+        "Score is based on detected pitch and timing features, not a reference melody."
+      ],
+      "status": "free_singing_general_feedback",
+      "summary": "Good foundation \u2014 pitch 100%, avg phrase 4.2 s. The issues below will make a clear difference. Note: Score is based on detected pitch and timing features, not a reference melody.",
+      "scoring_components": {}
+    },
     "confidence_curve_available": false,
-    "confidence_curve_note": "analyse_recording() returns thresholded voiced/breath/onset arrays, but not raw per-frame confidence probabilities."
+    "confidence_curve_note": "analyse_recording() now returns summary diagnostics for raw probabilities/confidence, but not frame-level confidence arrays."
   },
   "result": {
     "pitch_hz": [
@@ -3523,48 +3780,30 @@
     "onset_clarity": 0.40005308389663696,
     "notes": [
       {
-        "start_s": 0.12,
-        "duration_s": 0.12,
-        "pitch_hz": 66.6714096069336,
-        "note_name": "C2",
-        "cents_error": 33.16393334883426,
-        "stability_cents": 1.4551915228366852e-11,
-        "vibrato": null
-      },
-      {
-        "start_s": 0.28,
-        "duration_s": 0.11,
-        "pitch_hz": 65.9779052734375,
-        "note_name": "C2",
-        "cents_error": 15.06162719752837,
-        "stability_cents": 16.59760093688965,
-        "vibrato": null
-      },
-      {
         "start_s": 0.39,
         "duration_s": 0.24,
-        "pitch_hz": 83.88390350341797,
+        "pitch_hz": 84.01739501953125,
         "note_name": "E2",
-        "cents_error": 30.754855505288717,
-        "stability_cents": 35.89677810668945,
+        "cents_error": 33.507724109466075,
+        "stability_cents": 34.69443130493164,
         "vibrato": null
       },
       {
-        "start_s": 0.7000000000000001,
-        "duration_s": 0.97,
-        "pitch_hz": 150.748291015625,
-        "note_name": "D3",
-        "cents_error": 45.5657477240764,
-        "stability_cents": 35.87727355957031,
+        "start_s": 0.68,
+        "duration_s": 0.99,
+        "pitch_hz": 75.48431396484375,
+        "note_name": "D2",
+        "cents_error": 48.09430884710047,
+        "stability_cents": 39.40107345581055,
         "vibrato": null
       },
       {
-        "start_s": 1.69,
-        "duration_s": 0.45,
-        "pitch_hz": 203.2677459716797,
-        "note_name": "G#3",
-        "cents_error": -36.94665646880875,
-        "stability_cents": 29.99777603149414,
+        "start_s": 1.67,
+        "duration_s": 0.47000000000000003,
+        "pitch_hz": 101.5598373413086,
+        "note_name": "G#2",
+        "cents_error": -38.20824113225863,
+        "stability_cents": 29.955625534057617,
         "vibrato": null
       },
       {
@@ -3587,47 +3826,20 @@
       },
       {
         "start_s": 3.5700000000000003,
-        "duration_s": 0.55,
-        "pitch_hz": 208.0993194580078,
+        "duration_s": 0.6,
+        "pitch_hz": 208.3268585205078,
         "note_name": "G#3",
-        "cents_error": 3.7224679858842915,
-        "stability_cents": 29.5916748046875,
-        "vibrato": null
-      },
-      {
-        "start_s": 4.17,
-        "duration_s": 0.12,
-        "pitch_hz": 80.82750701904297,
-        "note_name": "E2",
-        "cents_error": -33.50232118967152,
-        "stability_cents": 1.4551915228366852e-11,
-        "vibrato": null
-      },
-      {
-        "start_s": 4.5,
-        "duration_s": 0.1,
-        "pitch_hz": 82.57441711425781,
-        "note_name": "E2",
-        "cents_error": 3.515914458373583,
-        "stability_cents": 34.800994873046875,
+        "cents_error": 5.614392329394875,
+        "stability_cents": 27.999160766601562,
         "vibrato": null
       },
       {
         "start_s": 4.66,
-        "duration_s": 1.85,
-        "pitch_hz": 177.1269073486328,
-        "note_name": "F3",
-        "cents_error": 24.735837751171097,
-        "stability_cents": 67.1262435913086,
-        "vibrato": null
-      },
-      {
-        "start_s": 6.58,
-        "duration_s": 1.78,
-        "pitch_hz": 150.086181640625,
-        "note_name": "D3",
-        "cents_error": 37.94515733808012,
-        "stability_cents": 82.4006118774414,
+        "duration_s": 3.79,
+        "pitch_hz": 163.78050231933594,
+        "note_name": "E3",
+        "cents_error": -10.88788716912931,
+        "stability_cents": 159.448974609375,
         "vibrato": null
       }
     ],
@@ -3642,24 +3854,270 @@
       "mean_rate_hz": 0.0,
       "mean_depth_cents": 0.0
     },
+    "diagnostics": {
+      "source": "checkpoint",
+      "thresholds": {
+        "voiced": 0.5,
+        "breath": 0.35,
+        "onset": 0.3
+      },
+      "voiced_probability": {
+        "mean": 0.8199214041929379,
+        "median": 0.9059440195560455,
+        "min": 0.25432640314102173,
+        "max": 0.9669171571731567,
+        "percentiles": {
+          "p01": 0.3210832253098488,
+          "p05": 0.469720758497715,
+          "p10": 0.5285507440567017,
+          "p25": 0.7457852810621262,
+          "p50": 0.9059440195560455,
+          "p75": 0.9355699568986893,
+          "p90": 0.9484266042709351,
+          "p95": 0.9555130451917648,
+          "p99": 0.9642032623291016
+        },
+        "near_threshold_fraction": 0.0852803738317757,
+        "near_threshold_margin": 0.05
+      },
+      "pitch_confidence": {
+        "max_softmax_probability": {
+          "mean": 0.31103008042664104,
+          "median": 0.3668133169412613,
+          "min": 0.02616812475025654,
+          "max": 0.45401883125305176,
+          "percentiles": {
+            "p01": 0.0632097564637661,
+            "p05": 0.0856748279184103,
+            "p10": 0.10034456476569176,
+            "p25": 0.23557787016034126,
+            "p50": 0.3668133169412613,
+            "p75": 0.3933471664786339,
+            "p90": 0.41132985055446625,
+            "p95": 0.4204564094543457,
+            "p99": 0.43239230662584305
+          }
+        },
+        "top1_top2_margin": {
+          "mean": 0.06253993104725519,
+          "median": 0.05144128203392029,
+          "min": 4.616379737854004e-05,
+          "max": 0.2074008584022522,
+          "percentiles": {
+            "p01": 0.0005962349474430086,
+            "p05": 0.003219183534383774,
+            "p10": 0.006010578945279121,
+            "p25": 0.0182032510638237,
+            "p50": 0.05144128203392029,
+            "p75": 0.09869521856307983,
+            "p90": 0.13851304352283478,
+            "p95": 0.1571425125002861,
+            "p99": 0.18789177760481857
+          }
+        },
+        "entropy": {
+          "mean": 1.9943098946709499,
+          "median": 1.4772651195526123,
+          "min": 1.3082064390182495,
+          "max": 4.876398086547852,
+          "percentiles": {
+            "p01": 1.3415384829044341,
+            "p05": 1.3672692775726318,
+            "p10": 1.3837197422981262,
+            "p25": 1.4168248772621155,
+            "p50": 1.4772651195526123,
+            "p75": 2.194427251815796,
+            "p90": 3.6735986471176147,
+            "p95": 3.8844343423843384,
+            "p99": 4.136813092231751
+          }
+        },
+        "normalized_entropy": {
+          "mean": 0.38404129900079415,
+          "median": 0.28447475339591355,
+          "min": 0.25191937398709335,
+          "max": 0.939040748184131,
+          "percentiles": {
+            "p01": 0.2583380762492681,
+            "p05": 0.26329301722163273,
+            "p10": 0.26646085881898285,
+            "p25": 0.2728358655664998,
+            "p50": 0.28447475339591355,
+            "p75": 0.42257760170674497,
+            "p90": 0.7074194437968154,
+            "p95": 0.7480197609803831,
+            "p99": 0.796619962579237
+          }
+        }
+      },
+      "onset_probability": {
+        "mean": 0.20948245252317219,
+        "median": 0.14490757137537003,
+        "min": 0.04523936286568642,
+        "max": 0.5748579502105713,
+        "percentiles": {
+          "p01": 0.0504037119448185,
+          "p05": 0.06499743089079857,
+          "p10": 0.0752074308693409,
+          "p25": 0.09021017141640186,
+          "p50": 0.14490757137537003,
+          "p75": 0.3479270860552788,
+          "p90": 0.4196905642747879,
+          "p95": 0.44097842276096344,
+          "p99": 0.5161772280931477
+        }
+      },
+      "breath_probability": {
+        "mean": 0.27744579948833054,
+        "median": 0.2051214650273323,
+        "min": 0.08586270362138748,
+        "max": 0.6489938497543335,
+        "percentiles": {
+          "p01": 0.09086771123111248,
+          "p05": 0.10441522486507893,
+          "p10": 0.11691701412200928,
+          "p25": 0.14688921347260475,
+          "p50": 0.2051214650273323,
+          "p75": 0.4280971959233284,
+          "p90": 0.5210434794425964,
+          "p95": 0.5778098255395889,
+          "p99": 0.6388720780611039
+        }
+      },
+      "f0": {
+        "median_hz": 161.65499877929688,
+        "mean_hz": 154.01176167131217,
+        "full_range_hz": {
+          "min": 65.4000015258789,
+          "max": 237.58993530273438
+        },
+        "trimmed_range_hz": {
+          "p05": 73.40902709960938,
+          "p95": 228.61468505859375
+        },
+        "low_frequency_threshold_hz": 80.0,
+        "low_frequency_f0_ratio": 0.15769712140175218
+      },
+      "f0_jumps": {
+        "voiced_transition_count": 791,
+        "octave_jump_count": 0,
+        "semitone_jump_count": 8,
+        "max_abs_semitone_jump": 8.333333454982338,
+        "median_abs_semitone_jump": 0.0,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.9345794392523364
+      },
+      "note_fragmentation": {
+        "note_count": 7,
+        "notes_per_second": 0.8177570093457943,
+        "notes_per_voiced_second": 0.8760951188986232,
+        "median_note_duration_s": 0.6,
+        "short_note_ratio_lt_200ms": 0.0,
+        "short_note_ratio_lt_300ms": 0.14285714285714285,
+        "onset_count": 10,
+        "onsets_per_second": 1.1682242990654206
+      },
+      "note_postprocessing": {
+        "isolated_spike_count": 0,
+        "octave_jump_count": 4,
+        "postprocessed_octave_jump_count": 0,
+        "semitone_jump_count": 15,
+        "postprocessed_semitone_jump_count": 8,
+        "octave_correction_count": 178,
+        "f0_stability_cents": 664.2101341972611,
+        "raw_note_count": 12,
+        "initial_postprocessed_note_count": 7,
+        "postprocessed_note_count": 7,
+        "merge_count": 0,
+        "min_duration_s": 0.2,
+        "merge_gap_s": 0.08,
+        "merge_pitch_semitones": 1.0,
+        "fragmentation_index": 0.8177570093457943,
+        "raw_fragmentation_index": 1.4018691588785046
+      },
+      "raw_model_outputs": {
+        "technique": "breathy",
+        "technique_confidence": 0.351906418800354
+      }
+    },
+    "analysis_validity": {
+      "is_analyzable": true,
+      "input_type": "analyzable_singing",
+      "confidence": 0.75,
+      "reason_codes": [
+        "passes_current_postprocessing_checks"
+      ],
+      "summary_metrics": {
+        "duration_s": 8.56,
+        "audio_rms": 0.020151298493146896,
+        "voiced_frame_ratio": 0.9334112149532711,
+        "voiced_duration_s": 7.99,
+        "voiced_probability_mean": 0.8199214041929379,
+        "voiced_probability_near_threshold_fraction": 0.0852803738317757,
+        "pitch_confidence_mean": 0.31103008042664104,
+        "pitch_confidence_margin_mean": 0.06253993104725519,
+        "pitch_normalized_entropy_mean": 0.38404129900079415,
+        "f0_trimmed_range_hz": 155.20565795898438,
+        "low_frequency_f0_ratio": 0.15769712140175218,
+        "octave_jump_rate_per_second": 0.0,
+        "semitone_jump_rate_per_second": 0.9345794392523364,
+        "raw_note_count": 12,
+        "raw_fragmentation_index": 1.4018691588785046,
+        "raw_octave_jump_rate_per_second": 0.4672897196261682,
+        "raw_semitone_jump_rate_per_second": 1.7523364485981308,
+        "note_count": 7,
+        "notes_per_second": 0.8177570093457943,
+        "short_note_ratio_lt_300ms": 0.14285714285714285,
+        "onset_count": 10,
+        "onsets_per_second": 1.1682242990654206
+      }
+    },
+    "task_config": {
+      "task_type": "free_singing",
+      "skill_focus": "general",
+      "target": null,
+      "reference": null,
+      "scoring_mode": "general",
+      "strictness": "normal"
+    },
+    "task_analysis": {
+      "task_type": "free_singing",
+      "provided_task_config": {
+        "task_type": "free_singing",
+        "skill_focus": "general",
+        "target": null,
+        "reference": null,
+        "scoring_mode": "general",
+        "strictness": "normal"
+      },
+      "detected_input_type": "analyzable_singing",
+      "caveats": [
+        "Score is based on detected pitch and timing features, not a reference melody."
+      ],
+      "status": "free_singing_general_feedback",
+      "summary": "Good foundation \u2014 pitch 100%, avg phrase 4.2 s. The issues below will make a clear difference. Note: Score is based on detected pitch and timing features, not a reference melody.",
+      "scoring_components": {}
+    },
     "score": 78,
-    "summary": "Good foundation \u2014 pitch 100%, avg phrase 4.2 s. The issues below will make a clear difference.",
+    "full_song_score": 78,
+    "diagnostic_score": null,
+    "score_status": "free_singing_general_feedback",
+    "score_caveat": "Score is based on detected pitch and timing features, not a reference melody.",
+    "summary": "Good foundation \u2014 pitch 100%, avg phrase 4.2 s. The issues below will make a clear difference. Note: Score is based on detected pitch and timing features, not a reference melody.",
     "issues": [
-      "Specific notes are consistently off: D3 (+42 \u00a2, sharp), E2 (-1 \u00a2, flat).",
       "Vocal instability detected (jitter 1.0%, shimmer 9.7%). This can indicate tension, fatigue, or insufficient warm-up.",
       "Phrase length averages 4.2 s. Aim for 5\u20136 s to improve musical line.",
       "4 sustained note(s) detected but no vibrato found. Adding vibrato enriches long notes and shows vocal control."
     ],
     "exercises": [
-      "For those notes, imagine lifting the back of your tongue slightly and 'thinking' the pitch higher before you sing it.",
       "Rest the voice for 20 min, hydrate well, then warm up with gentle lip trills before attempting full-voice singing.",
       "Before each phrase take a fuller breath and see how long you can sustain 'aaah' on a comfortable note. Target: 6 s without strain.",
       "Practice a gentle hand-on-chest pulse while sustaining a note \u2014 this helps initiate the natural 5\u20136 Hz oscillation of healthy vibrato."
     ]
   },
   "model_output_limitations": [
-    "No raw per-frame pitch confidence is exposed by CoachingResult.",
-    "No raw per-frame VAD probability is exposed by CoachingResult.",
-    "Breath/onset arrays are thresholded booleans, not calibrated probabilities."
+    "Raw probability/confidence summaries are exposed in result.diagnostics.",
+    "Frame-level raw probability arrays are still not exposed in public reports.",
+    "Validity gating is applied as postprocessing; raw model outputs remain present."
   ]
 }

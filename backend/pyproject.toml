@@ -9,7 +9,7 @@ python = "^3.12"
 fastapi = "^0.111.1"
 uvicorn = "^0.23.2"
 SQLAlchemy = "^2.0.38"
-psycopg[binary] = "^3.5.1"
+psycopg = {extras = ["binary"], version = "^3.5.1"}
 python-dotenv = "^1.0.0"
 pydantic = "^2.10.12"
 librosa = "^0.10.0"

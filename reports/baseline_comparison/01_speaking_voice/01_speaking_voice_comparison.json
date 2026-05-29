@@ -1,0 +1,52 @@
+{
+  "sample": "01_speaking_voice",
+  "input_path": "samples/01_speaking_voice.wav",
+  "duration_s": 7.2746875,
+  "frames_compared": 728,
+  "checkpoint": {
+    "f0_coverage": 0.8337912087912088,
+    "median_f0_hz": 130.8000030517578,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 768.9650268554688,
+    "raw_f0_range_hz": 703.5650253295898,
+    "trimmed_p05_hz": 65.4000015258789,
+    "trimmed_p95_hz": 711.9654541015625,
+    "trimmed_f0_range_hz": 646.5654525756836,
+    "octave_jump_count": 16,
+    "semitone_jump_count": 31,
+    "octave_jump_rate": 2.1978021978021975,
+    "semitone_jump_rate": 4.258241758241758,
+    "f0_stability_cents": 678.5963768342507,
+    "direction_slope_hz_per_s": 23.19074508803307,
+    "median_voiced_probability": 0.6152515709400177,
+    "mean_voiced_probability": 0.6730629904912069,
+    "voiced_frame_percentage": 0.8337912087912088,
+    "pitch_confidence_mean": 0.19741488458680828,
+    "pitch_confidence_median": 0.1307729259133339
+  },
+  "baseline_pyin": {
+    "f0_coverage": 0.6195054945054945,
+    "median_f0_hz": 131.55772399902344,
+    "min_f0_hz": 33.27158737182617,
+    "max_f0_hz": 161.966552734375,
+    "raw_f0_range_hz": 128.69496536254883,
+    "trimmed_p05_hz": 41.082143783569336,
+    "trimmed_p95_hz": 151.9955596923828,
+    "trimmed_f0_range_hz": 110.91341590881348,
+    "octave_jump_count": 0,
+    "semitone_jump_count": 0,
+    "octave_jump_rate": 0.0,
+    "semitone_jump_rate": 0.0,
+    "f0_stability_cents": 803.9248810896523,
+    "direction_slope_hz_per_s": 3.613982359760002,
+    "median_voiced_probability": 0.010052967816591263,
+    "mean_voiced_probability": 0.1274919145753775,
+    "voiced_frame_percentage": 0.6195054945054945,
+    "pitch_confidence_mean": null,
+    "pitch_confidence_median": null
+  },
+  "artifacts": {
+    "json": "reports/baseline_comparison/01_speaking_voice/01_speaking_voice_comparison.json",
+    "plot": "reports/baseline_comparison/01_speaking_voice/01_speaking_voice_comparison.svg"
+  }
+}

@@ -7,8 +7,7 @@ audio recordings and provide coaching feedback using the unified vocal model.
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
-import tempfile
-import json
+import logging
 
 import numpy as np
 
@@ -21,6 +20,8 @@ from ml_new.inference.coach_inference import (
     analyse_recording,
     CoachingResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MLInferenceService:
@@ -36,11 +37,24 @@ class MLInferenceService:
         self.checkpoint_path = checkpoint_path
         self.device = "cpu"  # Can be set to "cuda" or "mps" for GPU
 
+    def _debug_info(self) -> Dict[str, Any]:
+        """Describe which inference path this service will use."""
+        checkpoint_exists = (
+            self.checkpoint_path is not None and self.checkpoint_path.exists()
+        )
+        return {
+            "inference_mode": "checkpoint" if checkpoint_exists else "fallback",
+            "checkpoint_path_used": str(self.checkpoint_path) if checkpoint_exists else None,
+            "device_used": self.device,
+            "model_stack_used": "ml_new",
+        }
+
     def analyze_audio(
         self,
         audio_path: str | Path,
         song_title: str = "Unknown Song",
         artist: str = "Unknown Artist",
+        task_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Analyze a recording and return coaching metrics.
         
@@ -52,12 +66,21 @@ class MLInferenceService:
         Returns:
             Dictionary with coaching analysis including metrics and feedback.
         """
+        debug = self._debug_info()
+        logger.info(
+            "ML inference mode=%s checkpoint_path_used=%s device=%s model_stack=%s",
+            debug["inference_mode"],
+            debug["checkpoint_path_used"],
+            debug["device_used"],
+            debug["model_stack_used"],
+        )
         try:
             # Run the coaching inference
             result: CoachingResult = analyse_recording(
                 audio_path,
                 checkpoint=self.checkpoint_path,
                 device=self.device,
+                task_config=task_config,
             )
 
             # Convert result to JSON-serializable format
@@ -68,19 +91,32 @@ class MLInferenceService:
             return {
                 "status": "success",
                 "data": coaching_data,
+                "debug": debug,
             }
 
         except Exception as e:
+            logger.exception(
+                "ML inference failed mode=%s checkpoint_path_used=%s device=%s model_stack=%s",
+                debug["inference_mode"],
+                debug["checkpoint_path_used"],
+                debug["device_used"],
+                debug["model_stack_used"],
+            )
             return {
                 "status": "error",
                 "error": str(e),
                 "data": None,
+                "debug": debug,
             }
 
     def _format_coaching_result(self, result: CoachingResult) -> Dict[str, Any]:
         """Convert CoachingResult to frontend-compatible format."""
         return {
             "score": result.score,
+            "fullSongScore": result.full_song_score,
+            "diagnosticScore": result.diagnostic_score,
+            "scoreStatus": result.score_status,
+            "scoreCaveat": result.score_caveat,
             "summary": result.summary,
             "issues": result.issues,
             "exercises": result.exercises,
@@ -106,9 +142,13 @@ class MLInferenceService:
                 else None
             ),
             "vibrato": result.vibrato_stats,
+            "diagnostics": result.diagnostics,
+            "analysisValidity": result.analysis_validity,
+            "taskConfig": result.task_config,
+            "taskAnalysis": result.task_analysis,
             # Frame-level data (sampled for efficiency)
             "frameData": {
-                "pitch": self._downsample(result.pitch_hz, 10),
+                "pitch": self._downsample(result.pitch_hz, 10).tolist(),
                 "voiced": self._downsample(
                     result.voiced.astype(float), 10
                 ).tolist(),

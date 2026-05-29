@@ -11,7 +11,7 @@ class SingingSession(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     file_name = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)
 
     user = relationship("User", back_populates="sessions")
     analysis = relationship("AnalysisResult", back_populates="session", uselist=False)

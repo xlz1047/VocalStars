@@ -21,6 +21,11 @@ const ai = new GoogleGenAI({
   }
 });
 
+// Gemini availability check — called once on mount by ResultsView
+app.get("/api/coaching-status", (_req, res) => {
+  res.json({ available: !!process.env.GEMINI_API_KEY });
+});
+
 // AI Professional Coaching endpoint proxy
 app.post("/api/coaching-feedback", async (req, res) => {
   const { songTitle, artist, score, intonation, rhythm, timbre, dynamics } = req.body;

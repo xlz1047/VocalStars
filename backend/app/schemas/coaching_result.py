@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
-from pydantic import BaseModel
+from typing import Any, Optional
+from pydantic import BaseModel, Field
 
 
 class VibratoInfoSchema(BaseModel):
@@ -53,9 +53,17 @@ class CoachingAnalysisResponse(BaseModel):
     notes: list[NoteSegmentSchema]
     voice_quality: Optional[VoiceQualitySchema] = None
     vibrato_stats: dict
+    diagnostics: dict[str, Any] = Field(default_factory=dict)
+    analysis_validity: dict[str, Any] = Field(default_factory=dict)
+    task_config: dict[str, Any] = Field(default_factory=dict)
+    task_analysis: dict[str, Any] = Field(default_factory=dict)
 
     # Human-readable coaching
-    score: int
+    score: Optional[int] = None
+    full_song_score: Optional[int] = None
+    diagnostic_score: Optional[int] = None
+    score_status: str
+    score_caveat: Optional[str] = None
     summary: str
     issues: list[str]
     exercises: list[str]

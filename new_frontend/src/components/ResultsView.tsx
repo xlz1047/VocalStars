@@ -1,19 +1,20 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { 
-  RotateCcw, 
-  ArrowLeft, 
-  Award, 
-  Sparkles, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  RotateCcw,
+  ArrowLeft,
+  Award,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
   Info,
   Layers,
   Activity,
   ChevronRight,
   TrendingUp,
   Wind,
-  Music
+  Music,
+  Loader
 } from "lucide-react";
 import { PerformanceResult, CoachingNote } from "../types";
 
@@ -28,49 +29,50 @@ export default function ResultsView({
   onRetake, 
   onBackToDashboard 
 }: ResultsViewProps) {
-  const [coachingNotes, setCoachingNotes] = useState<CoachingNote[]>(result.coachingNotes);
+  const [geminiNotes, setGeminiNotes] = useState<CoachingNote[] | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [aiApiKeyMissing, setAiApiKeyMissing] = useState(false);
+  const [geminiAvailable, setGeminiAvailable] = useState<boolean | null>(null);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
 
-  // Trigger server-side AI feedback generation
+  // Check once on mount whether the Gemini API key is configured
   useEffect(() => {
-    async function generateAIFeedback() {
-      setIsLoadingAI(true);
-      try {
-        const response = await fetch("/api/coaching-feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            songTitle: result.songTitle,
-            artist: result.artist,
-            score: result.overallScore,
-            intonation: result.intonation,
-            rhythm: result.rhythm,
-            timbre: result.timbre,
-            dynamics: result.dynamics
-          })
-        });
+    fetch("/api/coaching-status")
+      .then(r => r.json())
+      .then(d => setGeminiAvailable(d.available))
+      .catch(() => setGeminiAvailable(false));
+  }, []);
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.coachingNotes && data.coachingNotes.length > 0) {
-            setCoachingNotes(data.coachingNotes);
-          }
-        } else {
-          const text = await response.text();
-          if (text.includes("GEMINI_API_KEY")) {
-            setAiApiKeyMissing(true);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not retrieve AI notes from Express endpoint, falling back to cached database reports.", err);
-      } finally {
-        setIsLoadingAI(false);
+  async function handleGetAICoaching() {
+    setIsLoadingAI(true);
+    setGeminiError(null);
+    try {
+      const response = await fetch("/api/coaching-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          songTitle: result.songTitle,
+          artist: result.artist,
+          score: result.overallScore,
+          intonation: result.intonation,
+          rhythm: result.rhythm,
+          timbre: result.timbre,
+          dynamics: result.dynamics,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setGeminiError(data.error || "AI coaching failed");
+        return;
       }
+      if (data.coachingNotes?.length > 0) {
+        setGeminiNotes(data.coachingNotes);
+      }
+    } catch (err: any) {
+      setGeminiError(err.message || "Network error");
+    } finally {
+      setIsLoadingAI(false);
     }
-
-    generateAIFeedback();
-  }, [result]);
+  }
 
   // Circumference calculation for SVG score ring (Radius 110 => Circumference roughly 691.15)
   const radius = 110;
@@ -235,34 +237,34 @@ export default function ResultsView({
             </div>
           </div>
 
-          {/* AI-Powered Coaching Notes */}
+          {/* ML Coaching Feedback (primary) + Gemini enhancement */}
           <div className="glass-card rounded-[24px] p-6 md:p-8 relative overflow-hidden border border-tertiary/10">
-            {/* Soft backdrop glow to indicate AI model output */}
             <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-tertiary/5 blur-[50px] pointer-events-none" />
-            
+
+            {/* Section header */}
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-tertiary animate-pulse" />
+                <Activity className="w-5 h-5 text-primary" />
                 <h3 className="font-display text-lg font-bold text-on-surface">
-                  {isLoadingAI ? "AI Coach is analyzing..." : "Scientific Coaching Feedback"}
+                  {geminiNotes ? "AI Coaching Feedback" : "Vocal Model Coaching"}
                 </h3>
               </div>
-              <span className="text-[10px] font-bold text-tertiary bg-tertiary/15 border border-tertiary/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                Gemini 3.5
+              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {geminiNotes ? "Gemini" : "ML Model"}
               </span>
             </div>
 
-            {isLoadingAI ? (
-              <div className="space-y-4 py-4 animate-pulse">
-                <div className="h-4 bg-white/5 rounded w-1/3" />
-                <div className="h-3 bg-white/5 rounded w-full" />
-                <div className="h-3 bg-white/5 rounded w-5/6" />
-                <div className="h-4 bg-white/5 rounded w-1/4 pt-4" />
-                <div className="h-3 bg-white/5 rounded w-full" />
-              </div>
-            ) : (
-              <ul className="space-y-6">
-                {coachingNotes.map((note, idx) => (
+            {/* ML model summary */}
+            {!geminiNotes && result.mlAnalysis?.summary && (
+              <p className="text-sm text-on-surface-variant/90 mb-5 leading-relaxed">
+                {result.mlAnalysis.summary}
+              </p>
+            )}
+
+            {/* Gemini notes (after user clicks the button) */}
+            {geminiNotes ? (
+              <ul className="space-y-6 mb-6">
+                {geminiNotes.map((note, idx) => (
                   <li key={idx} className="flex gap-4">
                     <div className="mt-1 flex-shrink-0">
                       {note.type === "success" ? (
@@ -283,22 +285,105 @@ export default function ResultsView({
                       <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">
                         {note.category}
                       </span>
-                      <h4 className="font-bold text-sm text-white mb-0.5">
-                        {note.title}
-                      </h4>
-                      <p className="text-xs text-on-surface-variant/90 leading-relaxed">
-                        {note.text}
-                      </p>
+                      <h4 className="font-bold text-sm text-white mb-0.5">{note.title}</h4>
+                      <p className="text-xs text-on-surface-variant/90 leading-relaxed">{note.text}</p>
                     </div>
                   </li>
                 ))}
               </ul>
+            ) : (
+              /* ML model issues + exercises */
+              <div className="space-y-4 mb-6">
+                {result.mlAnalysis?.issues && result.mlAnalysis.issues.length > 0 ? (
+                  result.mlAnalysis.issues.map((issue: string, idx: number) => (
+                    <div key={idx} className="flex gap-3">
+                      <div className="mt-0.5 flex-shrink-0 w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center">
+                        <AlertCircle className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-white mb-0.5">{issue}</p>
+                        {result.mlAnalysis?.exercises?.[idx] && (
+                          <p className="text-[11px] text-tertiary leading-relaxed">
+                            Exercise: {result.mlAnalysis.exercises[idx]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  /* fallback coachingNotes if ML analysis unavailable */
+                  <ul className="space-y-6">
+                    {result.coachingNotes.map((note, idx) => (
+                      <li key={idx} className="flex gap-4">
+                        <div className="mt-1 flex-shrink-0">
+                          {note.type === "success" ? (
+                            <div className="w-7 h-7 bg-tertiary/10 rounded-full flex items-center justify-center text-tertiary">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                          ) : note.type === "warning" ? (
+                            <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                              <AlertCircle className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <div className="w-7 h-7 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
+                              <Info className="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">
+                            {note.category}
+                          </span>
+                          <h4 className="font-bold text-sm text-white mb-0.5">{note.title}</h4>
+                          <p className="text-xs text-on-surface-variant/90 leading-relaxed">{note.text}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
 
-            {aiApiKeyMissing && (
-              <div className="mt-6 p-3 rounded-lg bg-white/5 border border-white/10 text-[11px] text-on-surface-variant/80 text-center">
-                Configure your <span className="font-bold text-primary">GEMINI_API_KEY</span> in Settings &gt; Secrets to experience real live AI-crafted feedback based on your pitch arrays.
+            {/* Get AI Coaching button */}
+            {!geminiNotes && (
+              <div className="border-t border-white/5 pt-5">
+                <button
+                  onClick={handleGetAICoaching}
+                  disabled={geminiAvailable === false || isLoadingAI}
+                  title={geminiAvailable === false ? "Gemini API key not configured — add GEMINI_API_KEY to .env" : undefined}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-tertiary/20 to-primary/20 border border-tertiary/30 text-sm font-bold text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                >
+                  {isLoadingAI ? (
+                    <Loader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-tertiary" />
+                  )}
+                  {isLoadingAI
+                    ? "Consulting AI Coach…"
+                    : geminiAvailable === false
+                    ? "AI Coaching Unavailable"
+                    : "Get AI Coaching"}
+                </button>
+                {geminiError && (
+                  <p className="mt-2 text-[11px] text-primary text-center">{geminiError}</p>
+                )}
+                {geminiAvailable === false && (
+                  <p className="mt-2 text-[10px] text-on-surface-variant/50 text-center">
+                    Add <span className="font-bold text-primary/70">GEMINI_API_KEY</span> to{" "}
+                    <code className="text-tertiary/70">new_frontend/.env</code> to enable
+                  </p>
+                )}
               </div>
+            )}
+
+            {/* Reset to ML coaching if user wants to go back */}
+            {geminiNotes && (
+              <button
+                onClick={() => setGeminiNotes(null)}
+                className="mt-4 text-[11px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors underline underline-offset-2"
+              >
+                Show ML model coaching instead
+              </button>
             )}
           </div>
 
@@ -438,42 +523,6 @@ export default function ResultsView({
             )}
           </div>
 
-          {/* Detailed Issues and Exercises */}
-          {(result.mlAnalysis.issues.length > 0 || result.mlAnalysis.exercises.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {result.mlAnalysis.issues.length > 0 && (
-                <div className="glass-card rounded-[24px] p-6 border border-primary/20">
-                  <h4 className="font-bold text-sm text-on-surface mb-4 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-primary" />
-                    Detected Issues
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.mlAnalysis.issues.map((issue: string, idx: number) => (
-                      <li key={idx} className="text-xs text-on-surface-variant/80 pl-4 border-l-2 border-primary/30">
-                        {issue}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.mlAnalysis.exercises.length > 0 && (
-                <div className="glass-card rounded-[24px] p-6 border border-secondary/20">
-                  <h4 className="font-bold text-sm text-on-surface mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-secondary" />
-                    Recommended Exercises
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.mlAnalysis.exercises.map((exercise: string, idx: number) => (
-                      <li key={idx} className="text-xs text-on-surface-variant/80 pl-4 border-l-2 border-secondary/30">
-                        {exercise}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
         </section>
       )}
 

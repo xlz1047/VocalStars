@@ -61,6 +61,22 @@ Batch outputs also include:
 - `reports/eval/self_recorded/summary.json`
 - `reports/eval/self_recorded/summary.md`
 
+## Check Regression Expectations
+
+Run the behavior-level regression suite for the five self-recorded WAV samples:
+
+```bash
+ml/.venv/bin/python scripts/eval/check_regression_expectations.py
+```
+
+The checker reads the latest JSON outputs under:
+
+```text
+reports/eval/self_recorded/
+```
+
+If a required sample output is missing or failed, it evaluates that WAV file with the existing harness and explicit `task_config`. It prints `PASS`/`FAIL` reasons and exits nonzero on failure. These checks intentionally avoid exact numeric score assertions while scoring calibration is still in progress.
+
 ## M4A Support
 
 The local `librosa`/`audioread` environment could not decode `.m4a` directly during setup. The harness therefore attempts to convert `.m4a`, `.aac`, and `.mp4` files to WAV using macOS `afconvert` when available.

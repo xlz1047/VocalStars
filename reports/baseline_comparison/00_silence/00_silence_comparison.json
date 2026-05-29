@@ -1,0 +1,52 @@
+{
+  "sample": "00_silence",
+  "input_path": "samples/00_silence.wav",
+  "duration_s": 6.933375,
+  "frames_compared": 694,
+  "checkpoint": {
+    "f0_coverage": 0.9553314121037464,
+    "median_f0_hz": 84.00072479248047,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 101.83626556396484,
+    "raw_f0_range_hz": 36.43626403808594,
+    "trimmed_p05_hz": 65.4000015258789,
+    "trimmed_p95_hz": 85.63375091552734,
+    "trimmed_f0_range_hz": 20.233749389648438,
+    "octave_jump_count": 0,
+    "semitone_jump_count": 40,
+    "octave_jump_rate": 0.0,
+    "semitone_jump_rate": 5.763688760806916,
+    "f0_stability_cents": 165.6179124763705,
+    "direction_slope_hz_per_s": -0.1675736909692618,
+    "median_voiced_probability": 0.5699659287929535,
+    "mean_voiced_probability": 0.5649345928550797,
+    "voiced_frame_percentage": 0.9553314121037464,
+    "pitch_confidence_mean": 0.12835416782604428,
+    "pitch_confidence_median": 0.1245700977742672
+  },
+  "baseline_pyin": {
+    "f0_coverage": 0.48703170028818443,
+    "median_f0_hz": 54.677879333496094,
+    "min_f0_hz": 32.70000076293945,
+    "max_f0_hz": 65.02332305908203,
+    "raw_f0_range_hz": 32.32332229614258,
+    "trimmed_p05_hz": 44.00785331726075,
+    "trimmed_p95_hz": 62.08697509765625,
+    "trimmed_f0_range_hz": 18.079121780395504,
+    "octave_jump_count": 0,
+    "semitone_jump_count": 0,
+    "octave_jump_rate": 0.0,
+    "semitone_jump_rate": 0.0,
+    "f0_stability_cents": 130.09057638716527,
+    "direction_slope_hz_per_s": -2.299890574459451,
+    "median_voiced_probability": 0.010000047273933887,
+    "mean_voiced_probability": 0.010211861858772441,
+    "voiced_frame_percentage": 0.48703170028818443,
+    "pitch_confidence_mean": null,
+    "pitch_confidence_median": null
+  },
+  "artifacts": {
+    "json": "reports/baseline_comparison/00_silence/00_silence_comparison.json",
+    "plot": "reports/baseline_comparison/00_silence/00_silence_comparison.svg"
+  }
+}

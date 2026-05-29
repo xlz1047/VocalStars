@@ -22,6 +22,49 @@ EXPECTED = {
     "05_twinkle_twinkle": "Short sung melody. Expected: voiced singing with multiple notes/onsets and changing f0.",
 }
 
+TASK_CONFIGS = {
+    "00_silence": {
+        "task_type": "free_singing",
+        "skill_focus": "invalid_input_regression",
+        "target": None,
+        "reference": None,
+        "scoring_mode": "auto",
+        "strictness": "normal",
+    },
+    "01_speaking_voice": {
+        "task_type": "free_singing",
+        "skill_focus": "invalid_input_regression",
+        "target": None,
+        "reference": None,
+        "scoring_mode": "auto",
+        "strictness": "normal",
+    },
+    "03_sustained_aaa": {
+        "task_type": "sustained_note",
+        "skill_focus": "pitch_stability",
+        "target": {"vowel": "aa"},
+        "reference": None,
+        "scoring_mode": "diagnostic",
+        "strictness": "normal",
+    },
+    "04_pitch_slide": {
+        "task_type": "pitch_slide",
+        "skill_focus": "smooth_continuous_slide",
+        "target": {"direction": "up_or_down"},
+        "reference": None,
+        "scoring_mode": "diagnostic",
+        "strictness": "normal",
+    },
+    "05_twinkle_twinkle": {
+        "task_type": "free_singing",
+        "skill_focus": "general",
+        "target": None,
+        "reference": None,
+        "scoring_mode": "general",
+        "strictness": "normal",
+    },
+}
+
 AUDIO_EXTS = {".wav", ".m4a", ".mp3", ".flac", ".ogg", ".aif", ".aiff", ".webm", ".aac", ".mp4"}
 
 
@@ -40,6 +83,9 @@ def find_audio_files(samples_dir: Path, extensions: set[str] | None = None) -> l
 
 def expected_behavior_check(sample: str, metrics: dict) -> str:
     """Return a lightweight expectation note from observable metrics."""
+    validity = metrics.get("analysis_validity") or {}
+    input_type = validity.get("input_type")
+    is_analyzable = bool(validity.get("is_analyzable"))
     voiced_ratio = float(metrics.get("voiced_frame_ratio") or 0.0)
     onset_count = int(metrics.get("onset_count") or 0)
     note_count = int(metrics.get("note_count") or 0)
@@ -48,15 +94,28 @@ def expected_behavior_check(sample: str, metrics: dict) -> str:
         f0_range = float(metrics["max_f0_hz"]) - float(metrics["min_f0_hz"])
 
     if sample.startswith("00_silence"):
-        return "PASS-ish" if voiced_ratio < 0.10 else "QUESTIONABLE: silence produced substantial voiced frames"
+        return "PASS" if input_type != "analyzable_singing" else "FAIL: silence was treated as analyzable singing"
     if sample.startswith("01_speaking_voice"):
-        return "OBSERVE: speech may be voiced; singing-specific outputs are not validated"
+        return "PASS" if not is_analyzable else "FAIL: speech received normal singing coaching"
     if sample.startswith("03_sustained_aaa"):
-        return "PASS-ish" if voiced_ratio > 0.50 and onset_count <= 3 else "QUESTIONABLE: sustained vowel was not cleanly represented"
+        return (
+            "PASS"
+            if input_type in {"diagnostic_sustained_tone", "analyzable_singing"}
+            else "QUESTIONABLE: sustained vowel was rejected as invalid"
+        )
     if sample.startswith("04_pitch_slide"):
-        return "PASS-ish" if voiced_ratio > 0.40 and (f0_range or 0.0) > 80 else "QUESTIONABLE: pitch slide did not show clear f0 movement"
+        return (
+            "PASS"
+            if input_type in {"diagnostic_pitch_slide", "analyzable_singing"}
+            else "QUESTIONABLE: pitch slide was rejected as invalid"
+        )
     if sample.startswith("05_twinkle_twinkle"):
-        return "PASS-ish" if voiced_ratio > 0.30 and (onset_count >= 2 or note_count >= 2) else "QUESTIONABLE: melody did not show multiple events"
+        task_status = (metrics.get("task_analysis") or {}).get("status")
+        return (
+            "PASS"
+            if input_type == "analyzable_singing" and task_status == "free_singing_general_feedback"
+            else "QUESTIONABLE: melody was not free-singing analyzable"
+        )
     return "OBSERVE"
 
 
@@ -72,7 +131,11 @@ def write_batch_summary(output_dir: Path, results: list[dict]) -> None:
                 "status": item.get("status"),
                 "expected": EXPECTED.get(item.get("sample", ""), ""),
                 "expectation_check": item.get("expectation_check"),
+                "summary": (item.get("result") or {}).get("summary"),
                 "score": metrics.get("score"),
+                "full_song_score": metrics.get("full_song_score"),
+                "diagnostic_score": metrics.get("diagnostic_score"),
+                "score_status": metrics.get("score_status"),
                 "voiced_frame_ratio": metrics.get("voiced_frame_ratio"),
                 "mean_f0_hz": metrics.get("mean_f0_hz"),
                 "min_f0_hz": metrics.get("min_f0_hz"),
@@ -80,6 +143,18 @@ def write_batch_summary(output_dir: Path, results: list[dict]) -> None:
                 "breath_count": metrics.get("breath_count"),
                 "onset_count": metrics.get("onset_count"),
                 "note_count": metrics.get("note_count"),
+                "diagnostics": metrics.get("diagnostics"),
+                "analysis_validity": metrics.get("analysis_validity"),
+                "task_config": metrics.get("task_config"),
+                "task_analysis": metrics.get("task_analysis"),
+                "raw_note_count": _get_nested(
+                    metrics.get("diagnostics") or {},
+                    "note_postprocessing.raw_note_count",
+                ),
+                "postprocessed_note_count": _get_nested(
+                    metrics.get("diagnostics") or {},
+                    "note_postprocessing.postprocessed_note_count",
+                ),
                 "error": item.get("error"),
                 "artifacts": item.get("artifacts"),
             }
@@ -92,34 +167,60 @@ def write_batch_summary(output_dir: Path, results: list[dict]) -> None:
         f"- Samples evaluated: `{len(results)}`",
         f"- JSON summary: `{summary_path}`",
         "",
-        "| Sample | Status | Expected behavior check | Score | Voiced ratio | Mean f0 | Onsets | Notes |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Sample | Provided task | Detected input | Score status | Full-song score | Diagnostic score | Task summary | Caveats | Regression expectation |",
+        "| --- | --- | --- | --- | ---: | ---: | --- | --- | --- |",
     ]
     for item in compact:
-        mean_f0 = item["mean_f0_hz"]
-        mean_f0_s = "" if mean_f0 is None else f"{mean_f0:.1f}"
+        validity = item.get("analysis_validity") or {}
+        task_config = item.get("task_config") or {}
+        task_analysis = item.get("task_analysis") or {}
         lines.append(
-            "| {sample} | {status} | {check} | {score} | {vr:.3f} | {f0} | {onsets} | {notes} |".format(
+            "| {sample} | {task_type} | {input_type} | {score_status} | {full_score} | {diag_score} | {task_summary} | {caveats} | {check} |".format(
                 sample=item["sample"],
-                status=item["status"],
+                task_type=task_config.get("task_type", ""),
+                input_type=validity.get("input_type", ""),
+                full_score=_format_optional(item.get("full_song_score")),
+                diag_score=_format_optional(item.get("diagnostic_score")),
+                score_status=item.get("score_status", ""),
+                task_summary=(task_analysis.get("summary") or item.get("summary") or "").replace("|", "\\|"),
+                caveats=", ".join(task_analysis.get("caveats") or []).replace("|", "\\|"),
                 check=(item["expectation_check"] or "").replace("|", "\\|"),
-                score=item["score"],
-                vr=float(item["voiced_frame_ratio"] or 0.0),
-                f0=mean_f0_s,
-                onsets=item["onset_count"],
-                notes=item["note_count"],
             )
         )
     lines += [
         "",
         "## Notes",
         "",
-        "- The existing inference entrypoint exposes thresholded voiced/breath/onset arrays, not raw confidence curves.",
+        "- Analysis validity is a postprocessing gate; raw frame outputs and notes remain present for inspection.",
+        "- Each sample is evaluated with an explicit task_config.",
+        "- Full-song score and diagnostic score are reported separately.",
+        "- Normal singing coaching is blocked for non-analyzable and diagnostic inputs.",
         "- `.m4a` files are converted with macOS `afconvert` when direct decoding is unavailable.",
         "- Checks are heuristics for diagnostic sanity, not formal model accuracy metrics.",
         "",
     ]
     md_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _get_nested(obj: dict, dotted_path: str):
+    cur = obj
+    for part in dotted_path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
+def _format_float(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.3f}"
+    return str(value)
+
+
+def _format_optional(value) -> str:
+    return "" if value is None else str(value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -154,7 +255,14 @@ def main() -> int:
     results = []
     for path in files:
         print(f"Evaluating {path}")
-        result = evaluate_audio(path, args.output_dir, args.checkpoint, args.device)
+        task_config = TASK_CONFIGS.get(path.stem)
+        result = evaluate_audio(
+            path,
+            args.output_dir,
+            args.checkpoint,
+            args.device,
+            task_config,
+        )
         result["expected_behavior"] = EXPECTED.get(result.get("sample", ""), "")
         if result.get("status") == "success":
             result["expectation_check"] = expected_behavior_check(
