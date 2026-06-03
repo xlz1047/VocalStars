@@ -20,7 +20,7 @@ downloaded to ``ml/data/raw/csd/``.
 
 import numpy as np
 
-from ml.data.base_dataset import SingingDataset
+from ml_new.legacy_ml.data.base_dataset import SingingDataset
 
 
 class CSDDataset(SingingDataset):

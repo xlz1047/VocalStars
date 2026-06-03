@@ -17,8 +17,8 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Subset
 
-from ml._model.voice_coach import VoiceCoachModel
-from ml.data import (
+from ml_new.legacy_ml._model.voice_coach import VoiceCoachModel
+from ml_new.legacy_ml.data import (
     CombinedSingingDataset,
     CSDDataset,
     DSingDataset,
@@ -26,13 +26,13 @@ from ml.data import (
     NUS48EDataset,
     VocalSetDataset,
 )
-from ml.data.gtsinger_dataset import GTSingerDataset
-from ml.data.popbutfy_dataset import PopBuTFyDataset
-from ml.data.base_dataset import SingingDataset
-from ml.pitch_detection.model import PitchHead
-from ml.training.evaluate import evaluate_model
-from ml.training.losses import MultiTaskLoss
-from ml.training.npz_dataset import NanoPitchDataset, f0_to_posteriorgram
+from ml_new.legacy_ml.data.gtsinger_dataset import GTSingerDataset
+from ml_new.legacy_ml.data.popbutfy_dataset import PopBuTFyDataset
+from ml_new.legacy_ml.data.base_dataset import SingingDataset
+from ml_new.legacy_ml.pitch_detection.model import PitchHead
+from ml_new.legacy_ml.training.evaluate import evaluate_model
+from ml_new.legacy_ml.training.losses import MultiTaskLoss
+from ml_new.legacy_ml.training.npz_dataset import NanoPitchDataset, f0_to_posteriorgram
 
 # ── constants ─────────────────────────────────────────────────────────────────
 _WARMUP_STEPS = 500

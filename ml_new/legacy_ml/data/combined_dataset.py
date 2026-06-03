@@ -6,7 +6,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 
-from ml.data.base_dataset import SingingDataset
+from ml_new.legacy_ml.data.base_dataset import SingingDataset
 
 
 class CombinedSingingDataset(Dataset):
@@ -77,9 +77,9 @@ def build_dataset(data_dir: str, split: str = "train") -> CombinedSingingDataset
     Returns:
         A ``CombinedSingingDataset`` concatenating all found datasets.
     """
-    from ml.data.vocalset_dataset import VocalSetDataset
-    from ml.data.gtsinger_dataset import GTSingerDataset
-    from ml.data.popbutfy_dataset import PopBuTFyDataset
+    from ml_new.legacy_ml.data.vocalset_dataset import VocalSetDataset
+    from ml_new.legacy_ml.data.gtsinger_dataset import GTSingerDataset
+    from ml_new.legacy_ml.data.popbutfy_dataset import PopBuTFyDataset
 
     datasets: list[SingingDataset] = []
 

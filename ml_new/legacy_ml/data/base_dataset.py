@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from ml.feature_extraction.audio_utils import load_audio
-from ml.feature_extraction.mel import MelExtractor
+from ml_new.legacy_ml.feature_extraction.audio_utils import load_audio
+from ml_new.legacy_ml.feature_extraction.mel import MelExtractor
 
 
 def split_singers_alphabetical(all_singers: list[str], split: str) -> set[str]:

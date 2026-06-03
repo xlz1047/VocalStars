@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from ml.pitch_detection.model import PitchHead
+from ml_new.legacy_ml.pitch_detection.model import PitchHead
 
 _PITCH_FMIN: float = PitchHead.FMIN
 _PITCH_CENTS_PER_BIN: float = PitchHead.CENTS_PER_BIN

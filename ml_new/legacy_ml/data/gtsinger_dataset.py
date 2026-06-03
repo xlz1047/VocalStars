@@ -25,8 +25,8 @@ from pathlib import Path
 import librosa
 import numpy as np
 
-from ml.data.base_dataset import SingingDataset, split_singers_alphabetical
-from ml.feature_extraction.audio_utils import extract_median_pitch, is_breath_onset
+from ml_new.legacy_ml.data.base_dataset import SingingDataset, split_singers_alphabetical
+from ml_new.legacy_ml.feature_extraction.audio_utils import extract_median_pitch, is_breath_onset
 
 logger = logging.getLogger(__name__)
 

@@ -3,8 +3,8 @@
 import numpy as np
 from typing import Any
 
-from ml.feature_extraction.audio_utils import load_audio
-from ml.pitch_detection.model import PitchHead
+from ml_new.legacy_ml.feature_extraction.audio_utils import load_audio
+from ml_new.legacy_ml.pitch_detection.model import PitchHead
 
 
 # ── Viterbi decoders ─────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ class PitchDetector:
         self._model = model
         self._sr = sr
         if model is not None:
-            from ml.feature_extraction.mel import MelExtractor
+            from ml_new.legacy_ml.feature_extraction.mel import MelExtractor
             self._mel_extractor = MelExtractor(sr=sr)
 
     def analyze(self, audio_chunk: np.ndarray, sr: int = 16000) -> dict[str, Any]:

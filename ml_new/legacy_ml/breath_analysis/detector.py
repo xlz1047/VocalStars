@@ -4,9 +4,9 @@ import numpy as np
 import torch
 from typing import Any
 
-from ml.breath_analysis.extractor import BreathExtractor
-from ml.breath_analysis.model import BreathHead
-from ml.feature_extraction.audio_utils import load_audio, frame_audio
+from ml_new.legacy_ml.breath_analysis.extractor import BreathExtractor
+from ml_new.legacy_ml.breath_analysis.model import BreathHead
+from ml_new.legacy_ml.feature_extraction.audio_utils import load_audio, frame_audio
 
 
 class BreathDetector:

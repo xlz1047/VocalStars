@@ -5,9 +5,9 @@ from __future__ import annotations
 import torch
 from torch.utils.data import DataLoader
 
-from ml._model.voice_coach import VoiceCoachModel
-from ml.pitch_detection.model import PitchHead
-from ml.training.losses import MultiTaskLoss
+from ml_new.legacy_ml._model.voice_coach import VoiceCoachModel
+from ml_new.legacy_ml.pitch_detection.model import PitchHead
+from ml_new.legacy_ml.training.losses import MultiTaskLoss
 
 _BINS_HZ: torch.Tensor = PitchHead.FMIN * (
     2 ** (torch.arange(PitchHead.N_BINS, dtype=torch.float32) * PitchHead.CENTS_PER_BIN / 1200.0)

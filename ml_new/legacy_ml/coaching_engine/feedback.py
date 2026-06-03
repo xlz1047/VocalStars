@@ -63,7 +63,7 @@ def build_coaching_outline(
     Returns:
         Dict with keys: summary, focus_areas, suggested_exercises.
     """
-    from ml.coaching_engine.scorer import score_features
+    from ml_new.legacy_ml.coaching_engine.scorer import score_features
 
     scores = score_features(pitch, rhythm, breath)
     return build_feedback(scores)

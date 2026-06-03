@@ -3,10 +3,10 @@
 import torch
 import torch.nn as nn
 
-from ml._model.backbone import NanoPitchEncoder
-from ml.pitch_detection.model import PitchHead
-from ml.rhythm_analysis.model import RhythmHead
-from ml.breath_analysis.model import BreathHead
+from ml_new.legacy_ml._model.backbone import NanoPitchEncoder
+from ml_new.legacy_ml.pitch_detection.model import PitchHead
+from ml_new.legacy_ml.rhythm_analysis.model import RhythmHead
+from ml_new.legacy_ml.breath_analysis.model import BreathHead
 
 
 class VoiceCoachModel(nn.Module):
