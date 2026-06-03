@@ -43,6 +43,7 @@ def run_pyin_baseline(audio: np.ndarray) -> dict[str, np.ndarray]:
         fmax=2100.0,
         sr=SR,
         hop_length=HOP_LENGTH,
+        frame_length=2048,
         fill_na=0.0,
     )
     f0 = np.asarray(f0, dtype=np.float32)

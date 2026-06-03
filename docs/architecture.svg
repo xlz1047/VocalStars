@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 720" font-family="'Segoe UI', Arial, sans-serif">
+  <!-- Background -->
+  <rect width="1100" height="720" fill="#f8f9fa" rx="12"/>
+
+  <!-- Title -->
+  <text x="550" y="38" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">VocalStars — AI Vocal Coach System Overview</text>
+  <line x1="80" y1="52" x2="1020" y2="52" stroke="#dee2e6" stroke-width="1.5"/>
+
+  <!-- ── ROW 1: Data + Preprocessing ── -->
+
+  <!-- 1. DATA SOURCE -->
+  <rect x="40" y="75" width="220" height="160" rx="10" fill="#e8f4fd" stroke="#4a9fd5" stroke-width="2"/>
+  <rect x="40" y="75" width="220" height="34" rx="10" fill="#4a9fd5"/>
+  <rect x="40" y="95" width="220" height="14" fill="#4a9fd5"/>
+  <text x="150" y="97" text-anchor="middle" font-size="13" font-weight="bold" fill="white">① Data Source</text>
+  <text x="57" y="128" font-size="11" fill="#333">Datasets:</text>
+  <text x="57" y="144" font-size="11" fill="#555">• GTSinger (melody + technique)</text>
+  <text x="57" y="160" font-size="11" fill="#555">• VocalSet (vocal techniques)</text>
+  <text x="57" y="176" font-size="11" fill="#555">• PopBuTFy (pop vocals)</text>
+  <text x="57" y="197" font-size="11" fill="#333">Labels:</text>
+  <text x="57" y="213" font-size="11" fill="#555">pitch (pyin), VAD, onset, breath</text>
+  <text x="57" y="229" font-size="11" fill="#555">technique tags</text>
+
+  <!-- Arrow 1→2 -->
+  <line x1="262" y1="155" x2="302" y2="155" stroke="#6c757d" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 2. PREPROCESSING -->
+  <rect x="304" y="75" width="220" height="160" rx="10" fill="#e8f8f0" stroke="#38b07a" stroke-width="2"/>
+  <rect x="304" y="75" width="220" height="34" rx="10" fill="#38b07a"/>
+  <rect x="304" y="95" width="220" height="14" fill="#38b07a"/>
+  <text x="414" y="97" text-anchor="middle" font-size="13" font-weight="bold" fill="white">② Preprocessing</text>
+  <text x="321" y="128" font-size="11" fill="#333">Audio normalization:</text>
+  <text x="321" y="144" font-size="11" fill="#555">• 16 kHz mono resampling</text>
+  <text x="321" y="160" font-size="11" fill="#555">• 4096-sample frames, 50% overlap</text>
+  <text x="321" y="176" font-size="11" fill="#555">• Peak normalization</text>
+  <text x="321" y="197" font-size="11" fill="#333">Feature extraction:</text>
+  <text x="321" y="213" font-size="11" fill="#555">• HCQT (6 harmonics, 360 bins)</text>
+  <text x="321" y="229" font-size="11" fill="#555">• Log-mel spectrogram (128 bins)</text>
+
+  <!-- Arrow 2→3 -->
+  <line x1="526" y1="155" x2="566" y2="155" stroke="#6c757d" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 3. MODEL ARCHITECTURE — spans tall -->
+  <rect x="568" y="75" width="240" height="280" rx="10" fill="#fef9e7" stroke="#f39c12" stroke-width="2"/>
+  <rect x="568" y="75" width="240" height="34" rx="10" fill="#f39c12"/>
+  <rect x="568" y="95" width="240" height="14" fill="#f39c12"/>
+  <text x="688" y="97" text-anchor="middle" font-size="13" font-weight="bold" fill="white">③ Model Architecture</text>
+
+  <!-- Model A sub-box -->
+  <rect x="580" y="115" width="216" height="100" rx="7" fill="#fff" stroke="#f39c12" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="688" y="133" text-anchor="middle" font-size="11" font-weight="bold" fill="#c0392b">Model A — UnifiedVocalModel</text>
+  <text x="688" y="148" text-anchor="middle" font-size="10" fill="#555">Custom HCQT + GRU backbone (~256K params)</text>
+  <text x="591" y="164" font-size="10" fill="#555">Input: HCQT frames (6×360×T)</text>
+  <text x="591" y="179" font-size="10" fill="#555">Outputs: VAD · pitch logits · onset</text>
+  <text x="591" y="194" font-size="10" fill="#555">          breath · technique tags</text>
+  <text x="688" y="210" text-anchor="middle" font-size="10" fill="#888">Checkpoint: ml_new/checkpoints/unified/best.pt</text>
+
+  <!-- NanoPitch sub-box -->
+  <rect x="580" y="225" width="216" height="72" rx="7" fill="#fff" stroke="#8e44ad" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="688" y="243" text-anchor="middle" font-size="11" font-weight="bold" fill="#8e44ad">NanoPitch (Conservative Guard)</text>
+  <text x="591" y="259" font-size="10" fill="#555">CNN pitch posterior (332K params)</text>
+  <text x="591" y="274" font-size="10" fill="#555">Input: 40-band log-mel · Output: VAD + f0</text>
+  <text x="591" y="289" font-size="10" fill="#888">Checkpoint: ml_3/NanoPitch/.../best.pth</text>
+
+  <!-- pyin sub-box -->
+  <rect x="580" y="307" width="216" height="40" rx="7" fill="#fff" stroke="#2980b9" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="688" y="325" text-anchor="middle" font-size="11" font-weight="bold" fill="#2980b9">pyin — DSP Baseline</text>
+  <text x="688" y="341" text-anchor="middle" font-size="10" fill="#555">librosa probabilistic f0 · no params</text>
+
+  <!-- Arrow 3→4 -->
+  <line x1="810" y1="215" x2="848" y2="215" stroke="#6c757d" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 4. POST-PROCESSING -->
+  <rect x="850" y="75" width="210" height="280" rx="10" fill="#fdecea" stroke="#e74c3c" stroke-width="2"/>
+  <rect x="850" y="75" width="210" height="34" rx="10" fill="#e74c3c"/>
+  <rect x="850" y="95" width="210" height="14" fill="#e74c3c"/>
+  <text x="955" y="97" text-anchor="middle" font-size="13" font-weight="bold" fill="white">④ Post-Processing</text>
+  <text x="866" y="128" font-size="11" fill="#333">Hybrid decision logic:</text>
+  <text x="866" y="144" font-size="11" fill="#555">• NanoPitch vetoes noise/silence</text>
+  <text x="866" y="160" font-size="11" fill="#555">• pyin cleans f0 for diagnostics</text>
+  <text x="866" y="176" font-size="11" fill="#555">• Model A owns task heads</text>
+  <text x="866" y="197" font-size="11" fill="#333">Task-aware evaluators:</text>
+  <text x="866" y="213" font-size="11" fill="#555">• sustained_note</text>
+  <text x="866" y="229" font-size="11" fill="#555">• pitch_slide</text>
+  <text x="866" y="245" font-size="11" fill="#555">• free_singing</text>
+  <text x="866" y="261" font-size="11" fill="#555">• note_match</text>
+  <text x="866" y="282" font-size="11" fill="#333">Signal validity gate:</text>
+  <text x="866" y="298" font-size="11" fill="#555">blocks coaching on invalid audio</text>
+  <text x="866" y="314" font-size="11" fill="#555">f0 smoothing + note segmentation</text>
+  <text x="866" y="330" font-size="11" fill="#555">phrase / breath boundary detection</text>
+  <text x="866" y="346" font-size="11" fill="#555">scoring per task type</text>
+
+  <!-- ── ROW 2: Feedback + Specs ── -->
+
+  <!-- Arrow 4→5 (down from post-processing) -->
+  <line x1="955" y1="357" x2="955" y2="405" stroke="#6c757d" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 5. FEEDBACK TO USER -->
+  <rect x="568" y="407" width="520" height="170" rx="10" fill="#eaf0fb" stroke="#3498db" stroke-width="2"/>
+  <rect x="568" y="407" width="520" height="34" rx="10" fill="#3498db"/>
+  <rect x="568" y="427" width="520" height="14" fill="#3498db"/>
+  <text x="828" y="429" text-anchor="middle" font-size="13" font-weight="bold" fill="white">⑤ Feedback to User (Vite + React Frontend)</text>
+
+  <!-- sub-panels inside feedback box -->
+  <rect x="580" y="449" width="150" height="118" rx="6" fill="#fff" stroke="#3498db" stroke-width="1"/>
+  <text x="655" y="466" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a5276">Pitch Lane</text>
+  <text x="588" y="482" font-size="10" fill="#555">• f0 contour plot</text>
+  <text x="588" y="497" font-size="10" fill="#555">• target note overlay</text>
+  <text x="588" y="512" font-size="10" fill="#555">• cents error shading</text>
+  <text x="588" y="527" font-size="10" fill="#555">• voiced/unvoiced bands</text>
+  <text x="588" y="542" font-size="10" fill="#555">• issue markers</text>
+  <text x="588" y="557" font-size="10" fill="#555">• waveform overlay</text>
+
+  <rect x="742" y="449" width="150" height="118" rx="6" fill="#fff" stroke="#3498db" stroke-width="1"/>
+  <text x="817" y="466" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a5276">Coaching Cards</text>
+  <text x="750" y="482" font-size="10" fill="#555">• task result score</text>
+  <text x="750" y="497" font-size="10" fill="#555">• subscores breakdown</text>
+  <text x="750" y="512" font-size="10" fill="#555">• technique feedback</text>
+  <text x="750" y="527" font-size="10" fill="#555">• breath/phrase markers</text>
+  <text x="750" y="542" font-size="10" fill="#555">• caveats + allowed</text>
+  <text x="750" y="557" font-size="10" fill="#555">  feedback policy</text>
+
+  <rect x="904" y="449" width="172" height="118" rx="6" fill="#fff" stroke="#3498db" stroke-width="1"/>
+  <text x="990" y="466" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a5276">Studio / Live Mode</text>
+  <text x="912" y="482" font-size="10" fill="#555">• audio recording/upload</text>
+  <text x="912" y="497" font-size="10" fill="#555">• mel spectrogram view</text>
+  <text x="912" y="512" font-size="10" fill="#555">• posterior confidence map</text>
+  <text x="912" y="527" font-size="10" fill="#555">• exercise suggestions</text>
+  <text x="912" y="542" font-size="10" fill="#555">• progress dashboard</text>
+  <text x="912" y="557" font-size="10" fill="#555">• song browser / reference</text>
+
+  <!-- Arrow connecting post-processing to Feedback (horizontal part) -->
+  <line x1="850" y1="430" x2="810" y2="430" stroke="#6c757d" stroke-width="1.5" stroke-dasharray="5,3"/>
+
+  <!-- ── System Specs box ── -->
+  <rect x="40" y="407" width="510" height="170" rx="10" fill="#f4f4f4" stroke="#6c757d" stroke-width="2"/>
+  <rect x="40" y="407" width="510" height="34" rx="10" fill="#6c757d"/>
+  <rect x="40" y="427" width="510" height="14" fill="#6c757d"/>
+  <text x="295" y="429" text-anchor="middle" font-size="13" font-weight="bold" fill="white">⑥ System Specs</text>
+
+  <rect x="52" y="449" width="228" height="118" rx="6" fill="#fff" stroke="#adb5bd" stroke-width="1"/>
+  <text x="166" y="466" text-anchor="middle" font-size="11" font-weight="bold" fill="#343a40">Compute &amp; Deployment</text>
+  <text x="62" y="482" font-size="10" fill="#555">CPU only — no GPU required</text>
+  <text x="62" y="497" font-size="10" fill="#555">Offline inference (batch)</text>
+  <text x="62" y="512" font-size="10" fill="#555">Backend: FastAPI (Python 3.11)</text>
+  <text x="62" y="527" font-size="10" fill="#555">Frontend: Vite + React + TypeScript</text>
+  <text x="62" y="542" font-size="10" fill="#555">Database: SQLite (local dev)</text>
+  <text x="62" y="557" font-size="10" fill="#555">Docker Compose for local stack</text>
+
+  <rect x="292" y="449" width="246" height="118" rx="6" fill="#fff" stroke="#adb5bd" stroke-width="1"/>
+  <text x="415" y="466" text-anchor="middle" font-size="11" font-weight="bold" fill="#343a40">Model Size &amp; Speed</text>
+  <text x="302" y="482" font-size="10" fill="#555">Model A: ~256K params · 1.0 MB (.pt)</text>
+  <text x="302" y="497" font-size="10" fill="#555">NanoPitch: 332K params · 1.3 MB (.pth)</text>
+  <text x="302" y="512" font-size="10" fill="#555">NanoPitch inference: 0.08–0.15 s / 5 s clip</text>
+  <text x="302" y="527" font-size="10" fill="#555">Input: 16 kHz mono · 256 ms frames</text>
+  <text x="302" y="542" font-size="10" fill="#555">Target: &lt;50 ms per frame real-time</text>
+  <text x="302" y="557" font-size="10" fill="#555">NanoPitch: browser-deployable (WASM)</text>
+
+  <!-- ── Bottom row: API layer ── -->
+  <rect x="40" y="593" width="1020" height="50" rx="8" fill="#fff" stroke="#adb5bd" stroke-width="1.5"/>
+  <text x="550" y="614" text-anchor="middle" font-size="11" font-weight="bold" fill="#495057">FastAPI REST Layer</text>
+  <text x="550" y="632" text-anchor="middle" font-size="10" fill="#6c757d">POST /api/audio/analyze → ml_new.inference.coach_inference → CoachingResult JSON → Frontend  |  GET /api/live → StreamingEngine</text>
+
+  <!-- Arrow data-flow: specs + feedback → API -->
+  <line x1="295" y1="579" x2="295" y2="593" stroke="#adb5bd" stroke-width="1.5" marker-end="url(#arrowgray)"/>
+  <line x1="828" y1="579" x2="828" y2="593" stroke="#adb5bd" stroke-width="1.5" marker-end="url(#arrowgray)"/>
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6c757d"/>
+    </marker>
+    <marker id="arrowgray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#adb5bd"/>
+    </marker>
+  </defs>
+
+  <!-- Legend -->
+  <text x="550" y="660" text-anchor="middle" font-size="9" fill="#aaa">
+    Sources: GTSinger · VocalSet · PopBuTFy datasets  |  Evaluation: 5/5 P4 behavioral regression checks pass  |  FVR = 0% on silence/noise (NanoPitch guard)
+  </text>
+</svg>
