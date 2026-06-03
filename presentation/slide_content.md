@@ -298,6 +298,44 @@ These are presented as **known limitations and future work**, not system failure
 Run command: `ml/.venv/bin/python scripts/eval/check_regression_expectations.py`
 
 ---
+---
+
+# ADDITIONAL EVALUATION — MULTI-DIMENSION RESULTS
+_Add these to the evaluation slides (not replacement — addition)_
+
+---
+
+## Table A — Per-recording results across all evaluated dimensions
+_Use on Slide 1 of evaluation. Shows what the system measures on real inputs._
+
+| Recording | Pitch stability (¢ spread) | Octave jumps | Direction | Task routed |
+|-----------|:---:|:---:|:---:|:---:|
+| Fan-noise silence | 165.6 ¢ | 0 | −0.2 Hz/s | **Blocked — not voice** |
+| Speaking voice | 678.6 ¢ | 16 | +23.2 Hz/s | **Blocked — not singing** |
+| Sustained vowel | 549 ¢ (A) / **194 ¢ (pyin)** | 27 / **0** | +0.6 Hz/s | `sustained_note` |
+| Pitch slide | 375 ¢ (A) / 388 ¢ (pyin) | 2 / **0** | +8.4 Hz/s | `pitch_slide` |
+| Free singing | 450 ¢ (A) / 648 ¢ (pyin) | 8 / **0** | −0.8 Hz/s | `free_singing` |
+
+_Lower cents spread = more stable pitch. Direction slope confirms pitch slide direction is captured correctly._
+
+---
+
+## Table B — Per-task head quality (all 5 evaluated dimensions)
+_Use on Slide 2 of evaluation. Covers breath, rhythm, and technique beyond pitch + VAD._
+
+| Task head | Metric | Value | Interpretation |
+|-----------|--------|:-----:|----------------|
+| Pitch detection | RPA | **93.1%** | Strong — within ±50 cents on 93% of voiced frames |
+| Pitch detection | Median f0 error | **11.2 ¢** | ~1/9 semitone, sufficient for beginner coaching |
+| Voice activity (VAD) | VDR / VFA | **97.3% / 42.3%** | High recall; hallucinates on noise → fixed by NanoPitch guard |
+| Pitch stability | Cents spread (pyin, sustained note) | **193.8 ¢** | ~2 semitones spread on held note — detectable and displayable |
+| Breath control | F1 | **0.035** | Weak — breath events are <2% of frames (class imbalance) |
+| Onset / rhythm | F1 | **0.056** (precision 27%) | Detects almost every onset (98% recall) but 73% are false positives |
+| Technique classification | Accuracy | **16%** | 5-class; limited labeled data per category in GTSinger |
+
+_Pitch and pitch stability are the system's strongest outputs. Breath, onset, and technique are implemented and produce output but accuracy is low — disclosed as known limitation with class imbalance and limited labeled data as root causes._
+
+---
 
 ## One-Paragraph Summary (for slide or speaker notes)
 
