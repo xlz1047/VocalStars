@@ -14,12 +14,8 @@ import numpy as np
 import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-NANOPITCH_ROOT = REPO_ROOT / "ml_3" / "NanoPitch"
-NANOPITCH_TRAINING = NANOPITCH_ROOT / "training"
-if str(NANOPITCH_TRAINING) not in sys.path:
-    sys.path.insert(0, str(NANOPITCH_TRAINING))
 
-from model import NanoPitch, viterbi_decode, viterbi_decode_realtime  # noqa: E402
+from ml_new.nanopitch.model import NanoPitch, viterbi_decode, viterbi_decode_realtime  # noqa: E402
 
 
 SR = 16_000
@@ -31,16 +27,7 @@ HOP_S = HOP_LENGTH / SR
 N_MELS = 40
 LOG_OFFSET = 1e-10
 VOICED_THRESHOLD = 0.5
-DEFAULT_CHECKPOINT = (
-    REPO_ROOT
-    / "ml_3"
-    / "NanoPitch"
-    / "training"
-    / "runs"
-    / "expD_mixed_cosine"
-    / "checkpoints"
-    / "best.pth"
-)
+DEFAULT_CHECKPOINT = REPO_ROOT / "weights" / "nanopitch_best.pth"
 
 
 def load_audio(path: Path) -> np.ndarray:

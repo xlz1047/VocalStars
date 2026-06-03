@@ -47,11 +47,21 @@ Full pipeline detail: [docs/ai-coach/ARCHITECTURE.md](docs/ai-coach/ARCHITECTURE
 
 ```bash
 cd backend
+
+# Create and activate a virtual environment (required — system Python has no packages)
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 pip install -r requirements-ml.txt   # ML dependencies (torch, librosa, etc.)
+
+# Configure environment and start the server
 cp ../.env.example ../.env           # configure DATABASE_URL if needed
 uvicorn app.main:app --reload
 ```
+
+> **Note:** always activate the venv (`source .venv/bin/activate`) before running any backend command. You should see `(.venv)` in your prompt when it is active.
 
 The API runs at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
 

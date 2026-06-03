@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from ml.pipeline import analyze_audio_file
+from ml_new.legacy_ml.pipeline import analyze_audio_file
 
 BASE_STORAGE = Path("./audio_uploads")
 BASE_STORAGE.mkdir(parents=True, exist_ok=True)
