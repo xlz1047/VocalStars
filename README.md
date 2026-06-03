@@ -86,19 +86,34 @@ Then open `http://localhost:5173` in your browser.
 
 ---
 
+## Getting the Data
+
+All runtime assets (model weights, reference vectors, melodies, manifests, and test samples) are hosted on Hugging Face at **[punumbed/vocalstars-data](https://huggingface.co/datasets/punumbed/vocalstars-data)**.
+
+After cloning, run:
+
+```bash
+pip install huggingface_hub
+python scripts/download_data.py
+```
+
+This downloads ~95 MB and places everything at the paths the app already expects — no other configuration needed.
+
+> **Teammates:** add `HF_TOKEN=<your_token>` to your `.env` if you hit rate limits (see `.env.example`).  
+> **Re-uploading:** `python scripts/upload_to_hf.py` (requires a write-access HF token in `.env`).
+
+---
+
 ## Model Weights
 
-Both model checkpoints are committed directly to this repository (each ~1–1.3 MB):
+Weights are included in the HF dataset above and also committed directly to `weights/` in this repo.
 
 | File | Model | Role |
 |------|-------|------|
 | `weights/model_a_unified.pt` | UnifiedVocalModel (HCQT+GRU) | Primary: pitch, VAD, onset, breath, technique |
 | `weights/nanopitch_best.pth` | NanoPitch (CNN posterior) | Conservative noise/silence guard |
 
-No download script needed — weights are included in `weights/`.
-
-The inference code loads weights from their original paths. If running inference from a fresh clone,
-copy or symlink:
+If running inference from a fresh clone, copy weights to their expected paths:
 ```bash
 cp weights/model_a_unified.pt ml_new/checkpoints/unified/best.pt
 cp weights/nanopitch_best.pth ml_3/NanoPitch/training/runs/expD_mixed_cosine/checkpoints/best.pth
@@ -108,7 +123,16 @@ cp weights/nanopitch_best.pth ml_3/NanoPitch/training/runs/expD_mixed_cosine/che
 
 ## Data
 
-### Datasets used for training
+### Runtime reference data (pre-computed — download via script above)
+
+| Asset | Location | Description |
+|-------|----------|-------------|
+| Reference vectors | `data/reference_catalog/vectors/` | 5196 pre-computed pitch vectors derived from VocalSet, MIR-1K, GTSinger |
+| Reference index | `data/reference_catalog/index.json` | Catalog of all reference entries with metadata |
+| Reference melodies | `data/reference_melodies/` | Built-in beginner melody pack (JSON + MIDI) |
+| Manifests | `data/manifests/` | Processed and raw dataset manifests |
+
+### Datasets used for training (obtain separately — not included in HF repo)
 
 | Dataset | Purpose | Download |
 |---------|---------|----------|
@@ -212,6 +236,9 @@ VocalStars/
 ├── new_frontend/     # Vite + React + TypeScript frontend
 │   └── src/components/   # PitchLane, ResultsView, StudioView, DashboardView, …
 ├── scripts/
+│   ├── download_data.py   # pull runtime assets from HuggingFace (run after clone)
+│   ├── upload_to_hf.py    # re-upload assets to HuggingFace (maintainers only)
+│   ├── data/         # reference index and manifest builders
 │   └── eval/         # evaluation harnesses (compare_baseline, check_regression, …)
 ├── docs/
 │   ├── architecture.svg          # system overview diagram
