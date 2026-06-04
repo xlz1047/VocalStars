@@ -55,6 +55,59 @@ from ml_new.inference.algorithms import (
 SR         = 16_000
 HOP_LENGTH = 160
 HOP_S: float = HOP_LENGTH / SR   # 0.01 s per frame
+
+# ---------------------------------------------------------------------------
+# Robust audio loader (handles WAV, WebM/Opus, MP4, OGG, etc.)
+# ---------------------------------------------------------------------------
+
+def _load_audio_robust(path: str | Path, sr: int = SR) -> np.ndarray:
+    """Load audio from any container/codec using soundfile first, then PyAV.
+
+    librosa's audioread fallback requires ffmpeg which is not always installed.
+    soundfile handles WAV/FLAC/OGG-Vorbis; PyAV handles WebM/Opus and MP4/AAC.
+    """
+    import soundfile as sf
+
+    path = str(path)
+    try:
+        data, native_sr = sf.read(path, always_2d=False, dtype="float32")
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+    except Exception:
+        data, native_sr = _load_audio_pyav(path)
+
+    if native_sr != sr:
+        import librosa
+        data = librosa.resample(data, orig_sr=native_sr, target_sr=sr)
+
+    return np.asarray(data, dtype=np.float32)
+
+
+def _load_audio_pyav(path: str) -> tuple[np.ndarray, int]:
+    """Decode audio via PyAV (bundles its own libav codecs — no system ffmpeg needed)."""
+    import av as _av  # lazy import; not a hard dependency for the model path
+
+    frames: list[np.ndarray] = []
+    native_sr = 48000
+    with _av.open(path) as container:
+        stream = container.streams.audio[0]
+        native_sr = stream.rate or 48000
+        for frame in container.decode(stream):
+            arr = frame.to_ndarray()
+            # Float planar (fltp) shape: (channels, samples)
+            # Integer formats shape: (channels, samples) or (samples,)
+            if arr.ndim > 1:
+                arr = arr.mean(axis=0)
+            # Normalize integer PCM to float32 [-1, 1]
+            if arr.dtype.kind == "i":
+                arr = arr.astype(np.float32) / float(np.iinfo(arr.dtype).max)
+            elif arr.dtype.kind == "u":
+                arr = arr.astype(np.float32) / float(np.iinfo(arr.dtype).max) * 2.0 - 1.0
+            else:
+                arr = arr.astype(np.float32)
+            frames.append(arr)
+    audio = np.concatenate(frames) if frames else np.zeros(native_sr, dtype=np.float32)
+    return audio, native_sr
 N_BINS        = 180
 BINS_PER_OCTAVE = 36
 FMIN = UnifiedVocalModel.FMIN    # 32.7 Hz (C1)
@@ -159,8 +212,14 @@ def analyse_recording(
         :class:`CoachingResult` with raw arrays, algorithmic metrics, and
         human-readable coaching advice.
     """
-    import librosa
-    audio, _ = librosa.load(str(audio_path), sr=SR, mono=True)
+    audio = _load_audio_robust(audio_path, sr=SR)
+
+    # Guard against clips that are shorter than the model's minimum context
+    # window (1024-sample pYIN frame). Pad to at least 1 second with silence
+    # so all downstream extractors receive a valid-length signal.
+    MIN_SAMPLES = SR  # 1 second at 16 kHz
+    if len(audio) < MIN_SAMPLES:
+        audio = np.pad(audio, (0, MIN_SAMPLES - len(audio)), mode="constant")
 
     ckpt_path = Path(checkpoint) if checkpoint else None
     use_model = (ckpt_path is not None) and ckpt_path.exists()
@@ -303,18 +362,24 @@ def _run_fallback(
     vad_ext   = VADFeatureExtractor(sr=SR, hop_length=HOP_LENGTH)
     vad_feats = vad_ext.compute(audio)
 
-    f0_hz, _, _ = librosa.pyin(
+    f0_hz, voiced_flag, voiced_probs = librosa.pyin(
         audio, fmin=float(FMIN), fmax=2100.0,
-        sr=SR, hop_length=HOP_LENGTH, fill_na=0.0,
+        sr=SR, hop_length=HOP_LENGTH,
+        frame_length=2048,
+        fill_na=0.0,
     )
 
     T         = min(vad_feats.shape[1], len(f0_hz))
     f0_hz     = f0_hz[:T].astype(np.float32)
     vad_feats = vad_feats[:, :T]
+    voiced_probs = np.asarray(voiced_probs, dtype=np.float32)[:T]
     voiced_bool = f0_hz > 0
 
     breath_arr = derive_breath_labels(voiced_bool.astype(np.float32), vad_feats)
     onset_arr  = derive_onset_labels(f0_hz)
+
+    vp_mean = float(np.mean(voiced_probs)) if len(voiced_probs) else 0.0
+    vp_near = float(np.mean((voiced_probs > 0.35) & (voiced_probs < 0.65))) if len(voiced_probs) else 0.0
 
     return _build_result(
         audio, f0_hz, voiced_bool,
@@ -326,6 +391,10 @@ def _run_fallback(
             "raw_model_probabilities_available": False,
             "note": "Fallback inference uses librosa.pyin and heuristic breath/onset labels.",
             "onset_probability": _array_summary(onset_arr),
+            "voiced_probability": {
+                "mean": vp_mean,
+                "near_threshold_fraction": vp_near,
+            },
         },
         task_config=task_config,
         technique="unknown",
@@ -674,6 +743,7 @@ def _analysis_validity(
     reason_codes: list[str] = []
     input_type = "analyzable_singing"
     confidence = 0.75
+    is_fallback = diagnostics.get("source") == "fallback"
 
     if duration_s < 1.0 or voiced_duration_s < 0.5:
         input_type = "low_confidence_or_unreliable"
@@ -681,20 +751,18 @@ def _analysis_validity(
         confidence = 0.80
     elif (
         audio_rms < 0.005
-        and pitch_conf < 0.18
-        and pitch_margin < 0.02
-        and pitch_entropy > 0.60
+        and (is_fallback or (pitch_conf < 0.18 and pitch_margin < 0.02 and pitch_entropy > 0.60))
     ):
         input_type = "no_voice_or_noise"
         reason_codes.extend([
             "very_low_audio_rms",
-            "low_pitch_confidence",
-            "high_pitch_entropy",
         ])
+        if not is_fallback:
+            reason_codes.extend(["low_pitch_confidence", "high_pitch_entropy"])
         if vad_near > 0.20:
             reason_codes.append("voiced_probabilities_near_threshold")
         confidence = 0.90
-    elif pitch_conf < 0.16 and pitch_margin < 0.02 and pitch_entropy > 0.62:
+    elif not is_fallback and pitch_conf < 0.16 and pitch_margin < 0.02 and pitch_entropy > 0.62:
         input_type = "low_confidence_or_unreliable"
         reason_codes.extend(["low_pitch_confidence", "high_pitch_entropy"])
         confidence = 0.75
@@ -725,7 +793,8 @@ def _analysis_validity(
         reason_codes.extend(["continuous_voicing", "wide_f0_movement", "few_note_events"])
         confidence = 0.72
     elif (
-        pitch_conf < 0.25
+        not is_fallback
+        and pitch_conf < 0.25
         and (notes_per_second > 1.2 or raw_fragmentation > 1.5)
         and (octave_rate > 1.0 or raw_octave_rate > 1.0 or short_note_ratio > 0.50)
     ):
@@ -740,7 +809,7 @@ def _analysis_validity(
     else:
         if not reason_codes:
             reason_codes.append("passes_current_postprocessing_checks")
-        if pitch_conf < 0.30:
+        if not is_fallback and pitch_conf < 0.30:
             reason_codes.append("melody_scoring_low_pitch_confidence_caveat")
             confidence = 0.62
 

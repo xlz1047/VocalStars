@@ -18,6 +18,7 @@ from app.main import app  # noqa: E402
 TEST_WAV = Path(__file__).parent.parent / "audio_uploads" / "3fb429c74d3248a2b3b80571cef355e6.wav"
 
 client = TestClient(app)
+GTSINGER_ROOT = _REPO_ROOT / "ml" / "data" / "raw" / "gtsinger" / "English"
 
 
 def _fake_coaching_result():
@@ -152,6 +153,151 @@ def test_analyze_reports_checkpoint_debug_when_checkpoint_exists(monkeypatch, tm
     }
     assert seen["checkpoint"] == checkpoint
     assert seen["task_config"] == {"task_type": "pitch_slide"}
+
+
+def test_analyze_ui_ready_response_mode_includes_contract(monkeypatch, tmp_path):
+    """UI-ready mode should include predictable uiReadyAnalysis fields."""
+    checkpoint = tmp_path / "model.pt"
+    checkpoint.write_bytes(b"not used because inference is mocked")
+    seen = {}
+
+    def fake_analyse_recording(*args, **kwargs):
+        seen["checkpoint"] = kwargs.get("checkpoint")
+        seen["task_config"] = kwargs.get("task_config")
+        return _fake_coaching_result()
+
+    def fake_build_ui_ready_response(*args, **kwargs):
+        seen["ui_task_config"] = kwargs.get("task_config")
+        seen["include_frames"] = kwargs.get("include_frames")
+        seen["debug"] = kwargs.get("debug")
+        return {
+            "schema_version": "test.ui_ready.v1",
+            "task_config": kwargs.get("task_config"),
+            "analysis_validity": {
+                "is_analyzable": True,
+                "input_type": "analyzable_singing",
+            },
+            "frames": [{"time_s": 0.0, "frame_index": 0, "f0_hz": 440.0, "voiced": True}],
+            "segments": {"notes": [], "phrases": [], "dropouts": []},
+            "task_result": {
+                "task_type": "sustained_note",
+                "status": "diagnostic_sustained_note_complete",
+                "full_song_score": None,
+                "diagnostic_score": 80,
+                "summary": "ok",
+            },
+            "subscores": {"pitch_stability": 0.8},
+            "feedback_policy": {
+                "allowed_feedback": ["pitch_stability"],
+                "blocked_feedback": [{"type": "full_song_score", "reason": "diagnostic"}],
+                "caveats": ["Diagnostic only."],
+            },
+            "source_strategy": {"selected_f0_source_recommendation": "pyin"},
+            "caveats": ["Diagnostic only."],
+        }
+
+    monkeypatch.setattr(
+        "app.services.ml_inference.analyse_recording",
+        fake_analyse_recording,
+    )
+    monkeypatch.setattr(
+        "app.api.routers.audio_processing.build_ui_ready_response",
+        fake_build_ui_ready_response,
+    )
+
+    task_config = {"task_type": "sustained_note", "target": {"note": "C4", "f0_hz": 261.63}}
+    response = client.post(
+        f"/api/audio/analyze-with-ml?response_mode=ui_ready&checkpoint_path={checkpoint}",
+        files={"file": ("test.wav", b"fake wav bytes", "audio/wav")},
+        data={
+            "song_title": "Debug Song",
+            "artist": "Debug Artist",
+            "task_config": json.dumps(task_config),
+            "include_frames": "true",
+            "debug": "false",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["uiReadyAnalysis"]["task_result"]["status"] == "diagnostic_sustained_note_complete"
+    assert body["data"]["uiReadyAnalysis"]["feedback_policy"]["blocked_feedback"][0]["type"] == "full_song_score"
+    assert body["data"]["ui_ready_analysis"]["feedback_policy"]["caveats"] == ["Diagnostic only."]
+    assert seen["checkpoint"] == checkpoint
+    assert seen["task_config"] == task_config
+    assert seen["ui_task_config"] == task_config
+    assert seen["include_frames"] is True
+    assert seen["debug"] is False
+
+
+def test_include_ui_ready_analysis_form_flag_is_supported(monkeypatch):
+    """Frontend form flag should trigger UI-ready response without query params."""
+    monkeypatch.setattr(
+        "app.services.ml_inference.analyse_recording",
+        lambda *args, **kwargs: _fake_coaching_result(),
+    )
+    monkeypatch.setattr(
+        "app.api.routers.audio_processing.build_ui_ready_response",
+        lambda *args, **kwargs: {
+            "schema_version": "test.ui_ready.v1",
+            "task_config": kwargs.get("task_config"),
+            "analysis_validity": {"input_type": "analyzable_singing"},
+            "frames": [],
+            "segments": {},
+            "task_result": {"task_type": "free_singing", "status": "free_singing_general_feedback"},
+            "subscores": {},
+            "feedback_policy": {"allowed_feedback": [], "blocked_feedback": [], "caveats": []},
+            "source_strategy": {},
+            "caveats": [],
+        },
+    )
+
+    response = client.post(
+        "/api/audio/analyze-with-ml",
+        files={"file": ("test.wav", b"fake wav bytes", "audio/wav")},
+        data={
+            "include_ui_ready_analysis": "true",
+            "task_config": json.dumps({"task_type": "free_singing"}),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["uiReadyAnalysis"]["schema_version"] == "test.ui_ready.v1"
+    assert body["data"]["uiReadyAnalysis"]["task_config"] == {"task_type": "free_singing"}
+
+
+@pytest.mark.skipif(not GTSINGER_ROOT.exists(), reason="GTSinger dataset is not present")
+def test_gtsinger_catalog_hides_paired_speech_by_default():
+    response = client.get("/api/audio/gtsinger-catalog?limit=20")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema_version"] == "gtsinger_catalog.v1"
+    assert body["default_group_policy"] == "sung_only"
+    assert body["songs"], "Expected at least one discovered GTSinger song"
+
+    for song in body["songs"]:
+        assert song["phrases"], f"Expected phrases for {song['id']}"
+        assert song["default_group"] != "Paired_Speech_Group"
+        assert not any(phrase["is_speech"] for phrase in song["phrases"])
+        assert song["default_audio_url"].startswith("/api/audio/file?path=ml/data/raw/gtsinger/")
+
+
+@pytest.mark.skipif(not GTSINGER_ROOT.exists(), reason="GTSinger dataset is not present")
+def test_gtsinger_catalog_can_include_paired_speech_for_dev_use():
+    response = client.get("/api/audio/gtsinger-catalog?include_speech=true&limit=50")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["songs"], "Expected at least one discovered GTSinger song"
+    assert any(
+        phrase["is_speech"]
+        for song in body["songs"]
+        for phrase in song["phrases"]
+    )
 
 
 @pytest.mark.skipif(not TEST_WAV.exists(), reason="test WAV file not present in audio_uploads")

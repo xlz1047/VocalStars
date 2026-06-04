@@ -109,6 +109,39 @@ class MLInferenceService:
                 "debug": debug,
             }
 
+    def run_coaching(
+        self,
+        audio_path: str | Path,
+        task_config: Optional[Dict[str, Any]] = None,
+    ) -> CoachingResult:
+        """Run inference and return the raw CoachingResult for response adapters."""
+        debug = self._debug_info()
+        logger.info(
+            "ML inference mode=%s checkpoint_path_used=%s device=%s model_stack=%s",
+            debug["inference_mode"],
+            debug["checkpoint_path_used"],
+            debug["device_used"],
+            debug["model_stack_used"],
+        )
+        return analyse_recording(
+            audio_path,
+            checkpoint=self.checkpoint_path,
+            device=self.device,
+            task_config=task_config,
+        )
+
+    def format_coaching_result(
+        self,
+        result: CoachingResult,
+        song_title: str = "Unknown Song",
+        artist: str = "Unknown Artist",
+    ) -> Dict[str, Any]:
+        """Format an already-computed CoachingResult for legacy clients."""
+        coaching_data = self._format_coaching_result(result)
+        coaching_data["songTitle"] = song_title
+        coaching_data["artist"] = artist
+        return coaching_data
+
     def _format_coaching_result(self, result: CoachingResult) -> Dict[str, Any]:
         """Convert CoachingResult to frontend-compatible format."""
         return {

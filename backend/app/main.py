@@ -8,7 +8,7 @@ if str(_REPO_ROOT) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import auth, audio_processing, analysis, coaching, progress
+from app.api.routers import auth, audio_processing, analysis, coaching, progress, live_analysis, reference
 from app.core.config import settings
 from app.core.database import engine, Base
 
@@ -33,3 +33,5 @@ app.include_router(audio_processing.router, prefix="/api/audio", tags=["audio_pr
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(coaching.router, prefix="/api/coaching", tags=["coaching"])
 app.include_router(progress.router, prefix="/api/progress", tags=["progress"])
+app.include_router(live_analysis.router, tags=["live_analysis"])
+app.include_router(reference.router, prefix="/api/reference", tags=["reference"])
