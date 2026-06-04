@@ -1,13 +1,11 @@
 import { motion } from "motion/react";
-import { 
-  Mic, 
-  LayoutDashboard, 
-  Activity, 
-  History, 
-  BookOpen, 
-  Radio, 
-  Menu, 
-  ChevronLeft 
+import {
+  Bug,
+  Mic,
+  LayoutDashboard,
+  Dumbbell,
+  History,
+  Radio,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -27,8 +25,9 @@ export default function Sidebar({
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "studio", label: "Studio Session", icon: Mic },
-    { id: "exercise", label: "Warmups", icon: Activity },
+    { id: "exercises", label: "Exercises", icon: Dumbbell },
     { id: "history", label: "History", icon: History },
+    { id: "ai-debug", label: "AI Debug", icon: Bug },
   ];
 
   return (

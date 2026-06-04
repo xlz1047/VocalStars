@@ -7,9 +7,12 @@ import { createServer as createViteServer } from "vite";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json());
+
+const goldenExamplesPath = path.resolve(process.cwd(), "..", "reports", "golden_ui_examples");
+app.use("/golden-ui-examples", express.static(goldenExamplesPath));
 
 // Initialize Google Gen AI
 const ai = new GoogleGenAI({
