@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { UiFrame, UiReadyAnalysis } from "../types";
 import { hzToNoteName, midiToHz } from "../utils/noteUtils";
 
@@ -144,6 +146,8 @@ export default function PitchLane({ analysis, compact = false }: PitchLaneProps)
     }
   }
 
+  const [legendOpen, setLegendOpen] = useState(false);
+
   return (
     <section className="glass-card rounded-2xl p-5 border border-white/5 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -156,12 +160,53 @@ export default function PitchLane({ analysis, compact = false }: PitchLaneProps)
               : ""}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-1 rounded-full bg-primary" /> your pitch</span>
-          {(target || hasReferenceContour) && <span className="inline-flex items-center gap-1"><span className="w-3 h-1 rounded-full bg-tertiary" /> target</span>}
-          <span className="inline-flex items-center gap-1"><span className="w-3 h-1 rounded-full bg-white/30" /> low confidence</span>
-        </div>
+        <button
+          onClick={() => setLegendOpen((o) => !o)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold text-on-surface-variant transition-all"
+        >
+          ⓘ How to read this
+          {legendOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
       </div>
+
+      {legendOpen && (
+        <div className="rounded-xl bg-white/4 border border-white/8 p-4 space-y-3 text-xs">
+          <p className="font-semibold text-on-surface/80 text-[11px] uppercase tracking-wider">What you're looking at</p>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 w-10 h-1.5 rounded-full bg-[#ffb1c0] flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Pink line</strong> — your actual singing pitch, traced over time</span>
+            </div>
+            {(target || hasReferenceContour) && (
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 w-10 border-t-2 border-dashed border-[#3cddc7] flex-shrink-0" />
+                <span className="text-on-surface-variant"><strong className="text-on-surface">Cyan dashed line</strong> — the ideal/target pitch you should be hitting</span>
+              </div>
+            )}
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 w-3 h-3 rounded-full bg-[#3cddc7] flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Cyan dot</strong> — right on pitch (within 25 cents — pro-level accuracy)</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 w-3 h-3 rounded-full bg-[#ffd166] flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Yellow dot</strong> — close but slightly off (25–75 cents — within half a semitone)</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 w-3 h-3 rounded-full bg-[#ffb4ab] flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Pink/red dot</strong> — off-key (beyond 75 cents — needs practice)</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 w-3 h-1.5 rounded-full bg-white/30 flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Faded/dashed line</strong> — low confidence detection (background noise or unclear pitch)</span>
+            </div>
+            <div className="flex items-start gap-2 sm:col-span-2">
+              <span className="mt-1 w-3 h-2 rounded-sm bg-white/40 flex-shrink-0" />
+              <span className="text-on-surface-variant"><strong className="text-on-surface">Bottom bar</strong> — white = your voice detected, dark = silence or breath</span>
+            </div>
+          </div>
+          <p className="text-on-surface-variant/60 text-[10px]">Tip: 100 cents = 1 semitone. Professional singers typically stay within ±25 cents.</p>
+        </div>
+      )}
 
       <div className="rounded-xl bg-surface-container-lowest/70 border border-white/5 p-3 overflow-x-auto">
         <svg

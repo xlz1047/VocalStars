@@ -14,7 +14,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { LiveFrame } from "../types";
 
-const WS_URL      = "ws://localhost:8000/ws/live-analysis";
+const _API_BASE   = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL) ?? "http://localhost:8000";
+const WS_URL      = _API_BASE.replace(/^http/, "ws") + "/ws/live-analysis";
 const SR_MODEL    = 16_000;
 const CHUNK       = 160;          // one 10ms model frame
 const BATCH_FRAMES = 20;          // must match server BATCH_FRAMES

@@ -58,12 +58,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from app.core.config import settings
 from ml_new.inference.streaming_inference import StreamingEngine
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-_CHECKPOINT = _REPO_ROOT / "ml_new" / "checkpoints" / "unified_v2" / "best.pt"
+_CHECKPOINT = Path(settings.ML_CHECKPOINT)
 
 # Module-level singleton — loaded once at backend startup so the first
 # WebSocket connection never waits ~2s for model initialisation.

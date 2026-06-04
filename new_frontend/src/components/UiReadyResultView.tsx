@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, CheckCircle2, Info, Lock, Music2, RotateCcw, Shield, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import { CoachingCategories, CoachingCategoryResult, FeedbackPolicy, PerformanceResult, PitchSlideScoreBreakdown, ReferenceAlignment, TaskConfig, TaskResult, UiFrame, UiReadyAnalysis, UiSegment } from "../types";
 import { buildImprovementPath, resolvePreset } from "../utils/improvementPath";
+import AnalysisCoachingSummary from "./AnalysisCoachingSummary";
 import MelSpectrogramView from "./MelSpectrogramView";
 import PitchLane from "./PitchLane";
 import PosteriorConfidenceMap from "./PosteriorConfidenceMap";
@@ -141,22 +142,48 @@ function ReferenceContourSummary({
             <thead className="bg-surface-container-high text-on-surface-variant uppercase tracking-wider">
               <tr>
                 <th className="p-3">Note</th>
-                <th className="p-3">Target</th>
-                <th className="p-3">Sung median</th>
+                <th className="p-3">Accuracy</th>
                 <th className="p-3">Error</th>
                 <th className="p-3">Coverage</th>
+                <th className="p-3">Coaching</th>
               </tr>
             </thead>
             <tbody>
-              {shownNotes.map((note: Record<string, any>) => (
-                <tr key={`${note.index}-${note.start_s}`} className="border-t border-white/5 text-on-surface-variant">
-                  <td className="p-3 text-white font-bold">{note.note || `#${Number(note.index) + 1}`}</td>
-                  <td className="p-3">{typeof note.target_f0_hz === "number" ? `${note.target_f0_hz.toFixed(1)} Hz` : "n/a"}</td>
-                  <td className="p-3">{typeof note.sung_median_f0_hz === "number" ? `${note.sung_median_f0_hz.toFixed(1)} Hz` : "n/a"}</td>
-                  <td className="p-3">{typeof note.median_cents_error === "number" ? `${Math.round(note.median_cents_error)} cents` : "n/a"}</td>
-                  <td className="p-3">{pct(note.f0_coverage)}</td>
-                </tr>
-              ))}
+              {shownNotes.map((note: Record<string, any>) => {
+                const absError = typeof note.median_cents_error === "number" ? Math.abs(note.median_cents_error) : null;
+                const accuracy = typeof note.accuracy === "number" ? note.accuracy : null;
+                const badge =
+                  absError === null ? null :
+                  absError <= 25  ? { label: "✓ On pitch",    cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25" } :
+                  absError <= 75  ? { label: "~ Slightly off", cls: "bg-amber-500/15 text-amber-300 border-amber-500/25" } :
+                                   { label: "✗ Off-key",     cls: "bg-rose-500/15 text-rose-300 border-rose-500/25" };
+                const errorDir = typeof note.median_cents_error === "number"
+                  ? note.median_cents_error > 10 ? " (sharp)" : note.median_cents_error < -10 ? " (flat)" : ""
+                  : "";
+                return (
+                  <tr key={`${note.index}-${note.start_s}`} className="border-t border-white/5 text-on-surface-variant">
+                    <td className="p-3 text-white font-bold">{note.note || `#${Number(note.index) + 1}`}</td>
+                    <td className="p-3">
+                      {badge && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                      {accuracy !== null && <span className="ml-2 text-[10px] text-on-surface-variant">{Math.round(accuracy * 100)}%</span>}
+                    </td>
+                    <td className="p-3">
+                      {absError !== null ? <>{Math.round(absError)}¢{errorDir}<span className="ml-1 text-[10px] text-on-surface-variant/50">({(absError / 100).toFixed(1)} st)</span></> : "n/a"}
+                    </td>
+                    <td className="p-3">{pct(note.f0_coverage)}</td>
+                    <td className="p-3 text-[11px] text-on-surface-variant/70 max-w-[180px]">
+                      {note.actionable_hint ||
+                        (absError !== null && absError > 75 ? "Try humming this note slowly to find the centre" :
+                         absError !== null && absError > 40 ? "Close — focus on landing the note first, then sustain" :
+                         "Good — keep the support to stay consistent")}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -589,6 +616,8 @@ export default function UiReadyResultView({
       {pitchSlideBreakdown && (
         <PitchSlideBreakdownCard breakdown={pitchSlideBreakdown} />
       )}
+
+      <AnalysisCoachingSummary analysis={analysis} />
 
       <CoachingCategoriesCard categories={analysis.coaching_categories} />
 
