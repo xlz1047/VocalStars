@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { PracticePreset, Song, TaskConfig } from "../types";
 import { PRACTICE_PRESETS } from "../utils/musicDb";
-import { useGtsingerCatalog } from "../utils/useGtsingerCatalog";
+import { useGtsingerCatalog, findAudioUrlForSong } from "../utils/useGtsingerCatalog";
 
 interface ExercisesViewProps {
   onStartPracticePreset: (preset: PracticePreset) => void;
@@ -204,11 +204,12 @@ function PresetCard({
 // ── GTSinger dynamic catalog section ─────────────────────────────────────────
 
 function GtSingerCatalogSection({
+  catalog,
   onSelectSong,
 }: {
+  catalog: ReturnType<typeof useGtsingerCatalog>;
   onSelectSong: (song: Song) => void;
 }) {
-  const catalog = useGtsingerCatalog();
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [filter, setFilter] = useState<string>("all");
@@ -395,6 +396,7 @@ export default function ExercisesView({
   onSelectSong,
 }: ExercisesViewProps) {
   const [activeCategory, setActiveCategory] = useState<Category>("all");
+  const catalog = useGtsingerCatalog();
 
   const filteredPresets = PRACTICE_PRESETS.filter((p) => {
     if (activeCategory === "all") return true;
@@ -483,19 +485,25 @@ export default function ExercisesView({
           {/* preset cards for gtsinger */}
           {(activeCategory === "gtsinger" || activeCategory === "all") && gtsingerPresets.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {gtsingerPresets.map((preset) => (
-                <div key={preset.id}>
-                  <PresetCard
-                    preset={preset}
-                    onStart={() => onStartPracticePreset(preset)}
-                    isGtSinger
-                  />
-                </div>
-              ))}
+              {gtsingerPresets.map((preset) => {
+                const catalogUrl = findAudioUrlForSong(catalog, preset.song.title, preset.song.singer);
+                const enrichedPreset = catalogUrl
+                  ? { ...preset, song: { ...preset.song, referenceAudioUrl: catalogUrl } }
+                  : preset;
+                return (
+                  <div key={preset.id}>
+                    <PresetCard
+                      preset={enrichedPreset}
+                      onStart={() => onStartPracticePreset(preset)}
+                      isGtSinger
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <GtSingerCatalogSection onSelectSong={onSelectSong} />
+          <GtSingerCatalogSection catalog={catalog} onSelectSong={onSelectSong} />
         </section>
       )}
 

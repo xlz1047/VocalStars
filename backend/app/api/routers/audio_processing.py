@@ -19,12 +19,27 @@ _AUDIO_WHITELIST = (
     "samples/",
     "ml/data/raw/gtsinger/",
     "ml/data/raw/vocalset/",
-    "ml/data/raw/mir1k/",   # isolated vocal mono WAVs written by preprocess_human_references.py
+    "ml/data/raw/mir1k/",
+    "ml_new/legacy_ml/data/raw/gtsinger/",
 )
 
 router = APIRouter()
 
-_GTSINGER_ENGLISH_ROOT = _REPO_ROOT / "ml" / "data" / "raw" / "gtsinger" / "English"
+def _resolve_gtsinger_root() -> Path:
+    """Return the first existing GTSinger English root, trying multiple locations."""
+    import os
+    env_path = os.environ.get("GTSINGER_DATA_PATH")
+    candidates = [
+        Path(env_path) if env_path else None,
+        _REPO_ROOT / "ml" / "data" / "raw" / "gtsinger" / "English",
+        _REPO_ROOT / "ml_new" / "legacy_ml" / "data" / "raw" / "gtsinger" / "English",
+    ]
+    for candidate in candidates:
+        if candidate and candidate.exists():
+            return candidate
+    return _REPO_ROOT / "ml" / "data" / "raw" / "gtsinger" / "English"
+
+_GTSINGER_ENGLISH_ROOT = _resolve_gtsinger_root()
 _SPEECH_GROUPS = {"Paired_Speech_Group"}
 _CONTROL_GROUPS = {"Control_Group"}
 

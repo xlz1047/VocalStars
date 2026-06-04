@@ -76,3 +76,24 @@ export function findSongPhrases(catalog: GtsingerCatalog | null, defaultAudioPat
   const song = catalog.songs.find((s) => s.default_audio_path === defaultAudioPath);
   return song?.phrases ?? [];
 }
+
+/**
+ * Resolve the correct audio URL for a preset song from the live catalog.
+ * Returns the catalog's device-resolved default_audio_url when found,
+ * falling back to the hardcoded url if the catalog has no matching entry.
+ */
+export function findAudioUrlForSong(
+  catalog: GtsingerCatalog | null,
+  title: string,
+  singer?: string,
+): string | null {
+  if (!catalog) return null;
+  const titleLower = title.toLowerCase();
+  const match = catalog.songs.find((s) => {
+    const titleMatch = s.title.toLowerCase() === titleLower;
+    if (!titleMatch) return false;
+    if (singer) return s.singer.toLowerCase().includes(singer.toLowerCase());
+    return true;
+  });
+  return match?.default_audio_url ?? null;
+}
