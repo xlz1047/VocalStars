@@ -1,0 +1,33 @@
+{
+  "exp_name": "exp_wmean_hires",
+  "checkpoint": "ml_new/checkpoints/pitch_hires/best.pt",
+  "manifest": "ml_new/data/extracted_hires/manifest.csv",
+  "config": {
+    "n_bins": 180,
+    "bins_per_octave": 36,
+    "sigma_bins": 2.0,
+    "voice_change_penalty": 5.0,
+    "voiced_threshold": 0.5
+  },
+  "argmax": {
+    "rpa": 0.9320523142814636,
+    "rca": 0.9413156509399414,
+    "vdr": 0.9631101489067078,
+    "vfa": 0.05104135721921921,
+    "median_cents": 11.185277938842773
+  },
+  "weighted_mean": {
+    "rpa": 0.8989113569259644,
+    "rca": 0.9027011394500732,
+    "vdr": 0.9631101489067078,
+    "vfa": 0.05104135721921921,
+    "median_cents": 7.090623378753662
+  },
+  "viterbi": {
+    "rpa": 0.9016096591949463,
+    "rca": 0.91563481092453,
+    "vdr": 0.9631101489067078,
+    "vfa": 0.05104135721921921,
+    "median_cents": 11.42841625213623
+  }
+}

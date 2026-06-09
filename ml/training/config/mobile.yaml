@@ -1,0 +1,11 @@
+# Mobile-optimised training configuration (targets < 5 MB int8, < 50 ms on mid-range Android)
+defaults:
+  - base
+
+model:
+  quantize: int8
+  max_params: 1_000_000
+
+export:
+  format: tflite
+  max_size_mb: 5

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VocalStars ML Architecture</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --accent1: #7c6af7;   /* purple – backbone */
+    --accent2: #3b9eff;   /* blue   – pitch */
+    --accent3: #2dd4a0;   /* teal   – rhythm */
+    --accent4: #f97316;   /* orange – breath */
+    --accent5: #e879a0;   /* pink   – loss */
+    --text: #e2e4ef;
+    --muted: #7b7f99;
+    --highlight: #f9c74f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── layout ── */
+  header {
+    text-align: center;
+    padding: 40px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 2rem; color: var(--highlight); letter-spacing: 1px; }
+  header p  { color: var(--muted); margin-top: 6px; }
+
+  nav {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  nav button {
+    padding: 8px 18px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .2s;
+  }
+  nav button:hover, nav button.active {
+    background: var(--accent1);
+    color: #fff;
+    border-color: var(--accent1);
+  }
+
+  .page { display: none; padding: 30px 40px 60px; max-width: 1200px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  h2 { font-size: 1.4rem; margin-bottom: 20px; color: var(--highlight); }
+  h3 { font-size: 1.05rem; margin-bottom: 10px; }
+
+  /* ── flow diagram ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .flow-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    justify-content: center;
+  }
+  .arrow-down {
+    width: 2px;
+    height: 32px;
+    background: var(--border);
+    margin: 0 auto;
+    position: relative;
+  }
+  .arrow-down::after {
+    content: '▼';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .box {
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 14px 20px;
+    position: relative;
+    transition: transform .2s, box-shadow .2s;
+    cursor: pointer;
+  }
+  .box:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  .box .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
+  .box .title { font-weight: 600; font-size: 1rem; }
+  .box .shape { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: monospace; }
+  .box .tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: 6px;
+  }
+
+  .box.input    { border-color: #fff3; background: #ffffff08; }
+  .box.mel      { border-color: #ffffff44; }
+  .box.backbone { border-color: var(--accent1); background: #7c6af710; }
+  .box.pitch    { border-color: var(--accent2); background: #3b9eff10; }
+  .box.rhythm   { border-color: var(--accent3); background: #2dd4a010; }
+  .box.breath   { border-color: var(--accent4); background: #f9731610; }
+  .box.loss     { border-color: var(--accent5); background: #e879a010; }
+  .box.output   { border-color: var(--highlight); background: #f9c74f0d; }
+
+  .heads-row {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    justify-content: center;
+  }
+  .head-col { display: flex; flex-direction: column; align-items: center; gap: 0; flex: 1; max-width: 260px; }
+
+  /* ── explainer cards ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .badge {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .card p { color: #b0b3c8; font-size: 14px; margin-bottom: 10px; }
+  .analogy {
+    background: #ffffff08;
+    border-left: 3px solid var(--highlight);
+    padding: 10px 14px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13px;
+    color: #d4d6e8;
+    margin-top: 10px;
+  }
+  .analogy strong { color: var(--highlight); }
+
+  /* ── params table ── */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  td:last-child { color: var(--muted); font-size: 13px; }
+  .bar-cell { position: relative; }
+  .bar {
+    height: 6px; border-radius: 3px; margin-top: 4px;
+  }
+
+  /* ── training flow ── */
+  .train-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent1);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px;
+    flex-shrink: 0;
+  }
+  .step-body { flex: 1; }
+  .step-body h4 { margin-bottom: 4px; }
+  .step-body p  { color: var(--muted); font-size: 13px; }
+
+  /* ── loss bar chart ── */
+  .loss-visual {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .loss-row { display: flex; align-items: center; gap: 12px; }
+  .loss-label { width: 110px; font-size: 13px; text-align: right; color: var(--muted); }
+  .loss-track { flex: 1; height: 20px; background: #ffffff0a; border-radius: 4px; overflow: hidden; }
+  .loss-fill   { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; color: #fff; }
+  .loss-weight { width: 50px; font-size: 13px; color: var(--text); }
+
+  code { background: #ffffff10; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VocalStars — ML Architecture</h1>
+  <p>Real-time vocal coaching model · 541K parameters · Mobile-first</p>
+</header>
+
+<nav>
+  <button class="active" onclick="show('overview')">Overview Diagram</button>
+  <button onclick="show('backbone')">Backbone</button>
+  <button onclick="show('heads')">Task Heads</button>
+  <button onclick="show('training')">Training</button>
+  <button onclick="show('intuition')">Intuition Guide</button>
+</nav>
+
+<!-- ═══════════════════════════════════ OVERVIEW ═══════════════════════════════════ -->
+<div id="overview" class="page active">
+  <h2>End-to-End Data Flow</h2>
+
+  <div class="flow">
+
+    <!-- Input -->
+    <div class="flow-row">
+      <div class="box input" style="min-width:300px" onclick="show('training')">
+        <div class="label">Input</div>
+        <div class="title">Raw Audio</div>
+        <div class="shape">16 kHz mono · any dataset</div>
+        <span class="tag" style="background:#ffffff15;color:#ccc">VocalSet · GTSinger · MIR-1K · ...</span>
+      </div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Mel -->
+    <div class="flow-row">
+      <div class="box mel" style="min-width:300px">
+        <div class="label">Feature Extraction</div>
+        <div class="title">Log-Mel Spectrogram</div>
+        <div class="shape">(B, 40, T) · 10 ms / frame · hop=160</div>
+        <span class="tag" style="background:#ffffff15;color:#aaa">STFT → 40 Mel bands → log(·+1e-9)</span>
+      </div>
+    </div>
+    <div class="arrow-down"></div>
+    <div class="flow-row">
+      <div style="font-size:12px;color:var(--muted);text-align:center">collate: transpose to time-major (B, T, 40)</div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Backbone -->
+    <div class="flow-row">
+      <div class="box backbone" style="min-width:420px" onclick="show('backbone')">
+        <div class="label">Shared Backbone · 46 K params</div>
+        <div class="title">NanoPitchEncoder</div>
+        <div class="shape">Causal Conv1d ×2 &nbsp;+&nbsp; GRU ×3 &nbsp;→&nbsp; cat all four</div>
+        <div class="shape" style="margin-top:4px">(B, T, 40) &nbsp;→&nbsp; <strong style="color:var(--accent1)">(B, T, 384)</strong></div>
+        <span class="tag" style="background:var(--accent1)22;color:var(--accent1)">Streamable · Causal · Pre-trainable</span>
+      </div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Three heads -->
+    <div class="flow-row" style="font-size:12px;color:var(--muted);margin-bottom:4px">
+      Split into 3 parallel task heads
+    </div>
+    <div class="heads-row" onclick="show('heads')" style="cursor:pointer">
+
+      <div class="head-col">
+        <div class="box pitch" style="width:100%">
+          <div class="label">Pitch Head · 355 K params</div>
+          <div class="title">PitchHead</div>
+          <div class="shape">Linear(384→360) + Linear(384→1)</div>
+          <div class="shape" style="color:var(--accent2)">→ pitch_logits (B,T,360)<br>→ vad_logits (B,T,1)</div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box output" style="width:100%;font-size:13px">
+          <span style="color:var(--highlight)">⟶</span> <strong>pitch_hz</strong> per frame<br>
+          <span style="color:var(--muted);font-size:11px">sigmoid-weighted mean over 360 bins</span>
+        </div>
+      </div>
+
+      <div class="head-col">
+        <div class="box rhythm" style="width:100%">
+          <div class="label">Rhythm Head · 123 K params</div>
+          <div class="title">RhythmHead</div>
+          <div class="shape">Conv1d 384→128→64→1 + sigmoid</div>
+          <div class="shape" style="color:var(--accent3)">→ onset_probs (B,1,T)</div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box output" style="width:100%;font-size:13px">
+          <span style="color:var(--highlight)">⟶</span> <strong>onset probability</strong> per frame<br>
+          <span style="color:var(--muted);font-size:11px">10× pos-weight for sparse onsets</span>
+        </div>
+      </div>
+
+      <div class="head-col">
+        <div class="box breath" style="width:100%">
+          <div class="label">Breath Head · 17 K params</div>
+          <div class="title">BreathHead</div>
+          <div class="shape">AvgPool → FC 384→64→1 + sigmoid</div>
+          <div class="shape" style="color:var(--accent4)">→ breath_prob (B,1)</div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box output" style="width:100%;font-size:13px">
+          <span style="color:var(--highlight)">⟶</span> <strong>breath detected?</strong> (per clip)<br>
+          <span style="color:var(--muted);font-size:11px">RMS heuristic label from DSP</span>
+        </div>
+      </div>
+    </div>
+    <div class="arrow-down"></div>
+
+    <!-- Loss -->
+    <div class="flow-row">
+      <div class="box loss" style="min-width:420px" onclick="show('training')">
+        <div class="label">Training only</div>
+        <div class="title">MultiTaskLoss</div>
+        <div class="shape">1.0 × pitch_BCE &nbsp;+&nbsp; 0.5 × onset_BCE &nbsp;+&nbsp; 0.3 × breath_BCE</div>
+        <span class="tag" style="background:var(--accent5)22;color:var(--accent5)">AdamW · Cosine LR · Warmup 500 steps · Grad clip 1.0</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ BACKBONE ══════════════════════════════════ -->
+<div id="backbone" class="page">
+  <h2>NanoPitchEncoder — Shared Backbone</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+    <div>
+      <h3 style="color:var(--accent1)">Architecture</h3>
+      <div class="flow" style="align-items:flex-start">
+        <div class="box" style="width:100%;border-color:var(--accent1)20">
+          <div class="label">Input</div>
+          <code>(B, T, 40)</code> log-mel, time-major
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box backbone" style="width:100%">
+          <div class="label">Causal Conv Block</div>
+          <div>pad(2,0) → Conv1d(40→64, k=3) → tanh</div>
+          <div>pad(2,0) → Conv1d(64→96, k=3) → tanh</div>
+          <div class="shape" style="margin-top:6px">conv_out: <code>(B, T, 96)</code></div>
+          <div class="analogy" style="margin-top:8px">
+            <strong>Causal padding</strong>: each frame only looks <em>back</em> 2 frames — no future peeking. Enables real-time streaming.
+          </div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box backbone" style="width:100%">
+          <div class="label">Recurrent Stack</div>
+          GRU1(96→96) → g1<br>
+          GRU2(96→96) → g2<br>
+          GRU3(96→96) → g3
+          <div class="analogy" style="margin-top:8px">
+            <strong>GRU hidden state</strong> = the model's "memory" of what it heard. Passed frame-by-frame during streaming.
+          </div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="box backbone" style="width:100%">
+          <div class="label">Skip Concatenation</div>
+          cat([conv_out, g1, g2, g3], dim=−1)
+          <div class="shape">features: <code>(B, T, 384)</code></div>
+          <div class="analogy" style="margin-top:8px">
+            <strong>Why concat all 4?</strong> conv_out = local texture (this frame), g1 = short context, g3 = long context. Concat lets each head pick what it needs.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="color:var(--accent1)">Key Techniques</h3>
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="badge" style="background:#7c6af720">🔒</div>
+            <h3>Causal Convolution</h3>
+          </div>
+          <p>Standard Conv1d with symmetric padding would let the model "see the future". Instead, <code>F.pad(x,(2,0))</code> adds zeros only on the <em>left</em>, so frame t uses only frames t−2, t−1, t.</p>
+          <div class="analogy"><strong>Analogy:</strong> Like reading a sentence word-by-word without skipping ahead — you can only use what you've heard so far.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="badge" style="background:#7c6af720">🔄</div>
+            <h3>GRU (Gated Recurrent Unit)</h3>
+          </div>
+          <p>GRUs maintain a hidden state <code>h</code> that summarises everything heard so far. Two gates control this: <em>reset</em> (how much to forget) and <em>update</em> (how much new info to add).</p>
+          <div class="analogy"><strong>Analogy:</strong> Like a musician who remembers the tempo and key from the last several bars, not just the last note.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="badge" style="background:#7c6af720">⊕</div>
+            <h3>Orthogonal Init on Recurrent Weights</h3>
+          </div>
+          <p>GRU recurrent matrices are initialised so their singular values are all 1.0. This keeps gradients from shrinking (vanishing) or exploding during backpropagation through long sequences.</p>
+          <div class="analogy"><strong>Analogy:</strong> Like tuning a phone to exact volume before a concert — prevents signal distortion at the start of training.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="badge" style="background:#7c6af720">🏁</div>
+            <h3>NanoPitch Pre-training</h3>
+          </div>
+          <p>This backbone is architecturally identical to NanoPitch (a small open-source pitch tracker). We can load its pre-trained weights directly — the model already "knows" how pitch relates to mel patterns before training starts.</p>
+          <div class="analogy"><strong>Analogy:</strong> Transfer learning — hiring someone who already knows music theory and just needs to learn to coach.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ HEADS ════════════════════════════════════ -->
+<div id="heads" class="page">
+  <h2>Task Heads — What Each Head Predicts</h2>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:var(--accent2)20;color:var(--accent2)">🎵</div>
+        <div>
+          <h3 style="color:var(--accent2)">PitchHead</h3>
+          <span style="font-size:12px;color:var(--muted)">354,920 params · per frame</span>
+        </div>
+      </div>
+      <p><strong>Output 1 — pitch_logits (B, T, 360):</strong> 360 bins spaced 20 cents apart, starting at B0 (31.7 Hz). Each bin = one possible pitch.</p>
+      <p><strong>Output 2 — vad_logits (B, T, 1):</strong> Voice Activity Detection — is the singer actually singing right now?</p>
+      <p><strong>CREPE-style soft classification:</strong> Instead of regressing a single Hz number, the model outputs probability across 360 bins. The final Hz is the sigmoid-weighted average of all bin frequencies.</p>
+      <div class="analogy">
+        <strong>Analogy:</strong> Like a musician tuning a guitar — instead of guessing one frequency, they listen across the whole range and find where energy concentrates. Expressing uncertainty = spreading probability mass across nearby bins.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:var(--accent3)20;color:var(--accent3)">🥁</div>
+        <div>
+          <h3 style="color:var(--accent3)">RhythmHead</h3>
+          <span style="font-size:12px;color:var(--muted)">123,137 params · per frame</span>
+        </div>
+      </div>
+      <p><strong>Output — onset_probs (B, 1, T):</strong> At each frame, how likely is it that a new note/syllable started here?</p>
+      <p><strong>Architecture:</strong> Three Conv1d layers (384→128→64→1) with ReLU activations — a lightweight CNN on top of the recurrent features.</p>
+      <p><strong>10× positive weight:</strong> Onsets are rare (maybe 5% of frames). Without this weighting, the model learns "never predict an onset" and achieves 95% accuracy doing nothing useful.</p>
+      <div class="analogy">
+        <strong>Analogy:</strong> Like a metronome detector — most of the time there's just sustained sound, but the model must be extra alert to the moments when a new note begins.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:var(--accent4)20;color:var(--accent4)">💨</div>
+        <div>
+          <h3 style="color:var(--accent4)">BreathHead</h3>
+          <span style="font-size:12px;color:var(--muted)">16,513 params · per clip</span>
+        </div>
+      </div>
+      <p><strong>Output — breath_prob (B, 1):</strong> One number per audio clip — did the singer start with a breath?</p>
+      <p><strong>Temporal average pooling:</strong> The backbone produces (B, 384, T) frame features. The breath head collapses the T dimension by averaging — because whether there's a breath is a clip-level property, not frame-level.</p>
+      <p><strong>Label source:</strong> RMS energy of the first 100ms. If it's very quiet (RMS &lt; 0.02), it's labelled as a breath.</p>
+      <div class="analogy">
+        <strong>Analogy:</strong> Like a vocal coach listening to whether their student audibly inhales before starting to sing — a whole-clip binary judgment, not something that changes mid-clip.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff15">📐</div>
+        <div>
+          <h3>Why Share a Backbone?</h3>
+          <span style="font-size:12px;color:var(--muted)">Multi-task learning</span>
+        </div>
+      </div>
+      <p>All three heads receive the same (B, T, 384) features from one backbone pass. This is <strong>multi-task learning</strong>:</p>
+      <p>1. <strong>Efficiency:</strong> One forward pass, three predictions simultaneously.</p>
+      <p>2. <strong>Regularisation:</strong> The backbone must learn representations useful for pitch AND rhythm AND breath — forces it to learn general vocal features rather than overfitting to one task.</p>
+      <p>3. <strong>Parameter budget:</strong> Each head is small because the backbone does the heavy lifting.</p>
+      <div class="analogy">
+        <strong>Analogy:</strong> Like a human ear — one auditory cortex serves all your musical judgments: pitch, rhythm, timbre. You don't have separate ears for each.
+      </div>
+    </div>
+
+  </div>
+
+  <h2 style="margin-top:36px">Parameter Budget</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Params</th><th>% of total</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span style="color:var(--accent1)">■</span> NanoPitchEncoder</td>
+        <td>46,730</td>
+        <td>
+          <div class="bar" style="width:9%;background:var(--accent1)"></div>
+          8.6%
+        </td>
+        <td>Shared feature extraction</td>
+      </tr>
+      <tr>
+        <td><span style="color:var(--accent2)">■</span> PitchHead</td>
+        <td>354,920</td>
+        <td>
+          <div class="bar" style="width:65%;background:var(--accent2)"></div>
+          65.6%
+        </td>
+        <td>384→360 linear (most params because 360 output bins)</td>
+      </tr>
+      <tr>
+        <td><span style="color:var(--accent3)">■</span> RhythmHead</td>
+        <td>123,137</td>
+        <td>
+          <div class="bar" style="width:23%;background:var(--accent3)"></div>
+          22.7%</td>
+        <td>Conv1d stack on time features</td>
+      </tr>
+      <tr>
+        <td><span style="color:var(--accent4)">■</span> BreathHead</td>
+        <td>16,513</td>
+        <td>
+          <div class="bar" style="width:3%;background:var(--accent4)"></div>
+          3.1%
+        </td>
+        <td>Tiny FC after pooling</td>
+      </tr>
+      <tr style="font-weight:600">
+        <td>TOTAL</td>
+        <td>541,300</td>
+        <td>~2 MB fp32 · ~0.5 MB int8</td>
+        <td>Fits &lt;5 MB target for Android</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════ TRAINING ══════════════════════════════════ -->
+<div id="training" class="page">
+  <h2>Training Pipeline</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px">
+
+    <div>
+      <h3>Step-by-step</h3>
+      <div class="train-steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>Load audio from disk</h4>
+            <p>librosa resamples to 16 kHz mono. Each dataset contributes audio + DSP-derived labels (pitch via YIN, onsets via librosa, breath via RMS).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>Compute log-mel spectrogram</h4>
+            <p>STFT (400 sample window, 160 hop) → 40 mel filter bands → log. Output shape: (1, 40, T).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>Collate batch + build targets</h4>
+            <p>Zero-pad mels to same T, transpose to (B, T, 40). Build Gaussian pitch bin targets centred on the label Hz. Convert onset frame indices to a dense binary mask (B, T).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>Forward pass</h4>
+            <p>Backbone → (B,T,384). Three heads run in parallel → pitch_logits, onset_probs, breath_prob.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>Compute MultiTaskLoss</h4>
+            <p>Weighted sum: 1.0×pitch + 0.5×rhythm + 0.3×breath. Onset loss uses 10× pos-weight for class imbalance.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <h4>Backward + update</h4>
+            <p>AdamW, grad clip at norm 1.0. Linear LR warmup for first 500 steps, then cosine anneal to 1e-6.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">7</div>
+          <div class="step-body">
+            <h4>Validate + checkpoint</h4>
+            <p>After each epoch, evaluate val pitch loss and pitch accuracy (RPA). Save best_model.pt. Checkpoint every epoch as NNN_loss.pt.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3>Loss Weights</h3>
+      <div class="loss-visual">
+        <div class="loss-row">
+          <div class="loss-label">Pitch BCE</div>
+          <div class="loss-track">
+            <div class="loss-fill" style="width:53%;background:var(--accent2)">×1.0</div>
+          </div>
+          <div class="loss-weight">Primary</div>
+        </div>
+        <div class="loss-row">
+          <div class="loss-label">Onset BCE</div>
+          <div class="loss-track">
+            <div class="loss-fill" style="width:27%;background:var(--accent3)">×0.5</div>
+          </div>
+          <div class="loss-weight">Secondary</div>
+        </div>
+        <div class="loss-row">
+          <div class="loss-label">Breath BCE</div>
+          <div class="loss-track">
+            <div class="loss-fill" style="width:16%;background:var(--accent4)">×0.3</div>
+          </div>
+          <div class="loss-weight">Tertiary</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:26px">Optimiser Setup</h3>
+      <div class="cards" style="grid-template-columns:1fr">
+        <div class="card">
+          <h4>AdamW</h4>
+          <p>Adam with decoupled weight decay (1e-4). Weight decay regularises the model by penalising large weights, but AdamW keeps this separate from the gradient adaptive scaling.</p>
+        </div>
+        <div class="card">
+          <h4>Linear Warmup → Cosine Anneal</h4>
+          <p>LR starts near zero, linearly ramps to peak (5e-4) over 500 steps, then follows a cosine curve down to 1e-6. Warmup prevents large gradient updates at random-init when loss gradients are huge.</p>
+          <div class="analogy"><strong>Analogy:</strong> Warming up a car engine before driving — prevents damage from sudden high load.</div>
+        </div>
+        <div class="card">
+          <h4>Gradient Clipping (max_norm=1.0)</h4>
+          <p>If the gradient vector norm exceeds 1.0, it's scaled down to 1.0. Prevents a single bad batch from causing a catastrophically large weight update.</p>
+        </div>
+        <div class="card">
+          <h4>Singer-level Split</h4>
+          <p>Train/val/test split by singer ID, not randomly by clip. This prevents <em>data leakage</em> — the model can't memorise a specific singer's voice during training and "cheat" on validation.</p>
+          <div class="analogy"><strong>Analogy:</strong> Testing a student on new songs they've never heard, not new recordings of songs they practised.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ INTUITION ══════════════════════════════════ -->
+<div id="intuition" class="page">
+  <h2>Intuition Guide — Explain It In Class</h2>
+  <div class="cards">
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">🎙️</div>
+        <h3>The Big Picture</h3>
+      </div>
+      <p>This is a <strong>real-time vocal coaching system</strong>. A singer holds their phone up and sings — the model processes 16ms chunks of audio and continuously outputs: <em>"what note are you singing, are you on the beat, did you just take a breath?"</em></p>
+      <p>All of this must happen in under 50ms on a mid-range Android phone, so the whole model is only 541K parameters (comparable to a tiny image classifier).</p>
+      <div class="analogy"><strong>Contrast:</strong> GPT-4 has ~1.8 <em>trillion</em> parameters. This model has 0.5 million — roughly 3 million times smaller.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">🌊</div>
+        <h3>Why Mel Spectrograms?</h3>
+      </div>
+      <p>Raw audio is a waveform — 16,000 numbers per second that are hard to learn from directly. A <strong>mel spectrogram</strong> converts this to a 2D image: time on the x-axis, frequency on the y-axis, brightness = energy.</p>
+      <p>The <em>mel</em> scale compresses high frequencies because human pitch perception is logarithmic — the difference between 100Hz and 200Hz sounds the same as 1000Hz and 2000Hz to us.</p>
+      <div class="analogy"><strong>Analogy:</strong> Like sheet music — instead of showing every air pressure wiggle, it shows what notes are playing and when. Much easier to learn from.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">🧠</div>
+        <h3>Why GRUs, Not Transformers?</h3>
+      </div>
+      <p>Transformers use self-attention: every token attends to every other token — O(T²) memory and compute. At 10ms per frame, 5 seconds of audio = 500 frames = 250,000 attention pairs.</p>
+      <p>GRUs are O(T) — they process one frame at a time and keep a fixed-size hidden state. Perfect for streaming where you can't wait for the full sequence.</p>
+      <div class="analogy"><strong>Analogy:</strong> Transformer = re-reading the whole book every page. GRU = taking notes as you go and only keeping the summary.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">🎯</div>
+        <h3>Why Classify Pitch Instead of Regressing It?</h3>
+      </div>
+      <p>The model outputs 360 probabilities (one per 20-cent bin) rather than a single Hz number. The final Hz is computed as a weighted average.</p>
+      <p><strong>Advantages:</strong> (1) Smooth loss landscape near the correct bin. (2) The model can express uncertainty by spreading probability over adjacent bins. (3) Matches how CREPE (a leading pitch tracker) is trained.</p>
+      <div class="analogy"><strong>Analogy:</strong> When asked "how tall is that building?", you say "probably between 40–50 floors" rather than guessing exactly 47. The uncertainty is information.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">⚖️</div>
+        <h3>Class Imbalance in Onset Detection</h3>
+      </div>
+      <p>In a 5-second clip at 10ms frames, there are ~500 frames. Maybe 20 of those are note onsets — just 4%. If the model always predicts "no onset" it gets 96% accuracy but is completely useless.</p>
+      <p>The fix: give onset frames 10× higher weight in the loss, forcing the model to care about getting them right even though they're rare.</p>
+      <div class="analogy"><strong>Analogy:</strong> A fraud detection system: 99.9% of transactions are legit. Accuracy is the wrong metric — you must weight the rare fraud cases heavily.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">🔀</div>
+        <h3>Multi-task Learning Regularisation</h3>
+      </div>
+      <p>Training one network to predict three things simultaneously forces the shared backbone to learn <em>general vocal representations</em> rather than features specific to just pitch or just rhythm.</p>
+      <p>This acts as a regulariser — the backbone can't overfit to one task because it has to serve all three. In practice, multi-task models often outperform single-task models on each individual task.</p>
+      <div class="analogy"><strong>Analogy:</strong> A music student who practises piano, singing, AND ear training simultaneously develops better general musicianship than someone who only practises one.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">📱</div>
+        <h3>Mobile Deployment Path</h3>
+      </div>
+      <p>After training in PyTorch, the model is:</p>
+      <p>1. Exported to <strong>ONNX</strong> (Open Neural Network Exchange — a portable format)</p>
+      <p>2. Converted to <strong>TFLite</strong> (TensorFlow Lite for mobile)</p>
+      <p>3. <strong>Int8 quantised</strong> — weights shrink from 32-bit floats to 8-bit integers (~4× compression, ~4× faster on hardware with int8 acceleration)</p>
+      <p>Target: &lt;5 MB model, &lt;50ms latency on mid-range Android.</p>
+      <div class="analogy"><strong>Analogy:</strong> Like compressing a high-res photo for a website — you lose a tiny amount of quality but the file is 4× smaller and loads 4× faster.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="badge" style="background:#ffffff10">📊</div>
+        <h3>Dataset Strategy</h3>
+      </div>
+      <p>The model is trained on multiple singing datasets simultaneously:</p>
+      <p>• <strong>VocalSet</strong> — professional singers, controlled vocal techniques (belt, vibrato, breathy…)</p>
+      <p>• <strong>GTSinger</strong> — multilingual, technique-labelled, with phoneme alignments in TextGrid files</p>
+      <p>• <strong>MIR-1K, CSD, DSing, NUS-48E</strong> — when available, for diversity</p>
+      <p>Split is by <em>singer</em>, not by clip — ensures the model generalises to new voices, not just new songs.</p>
+      <div class="analogy"><strong>Analogy:</strong> Training on many different singers is like teaching a vocal coach who has worked with hundreds of students — they learn to hear across accents, ranges, and styles.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const labels = {overview:'Overview Diagram',backbone:'Backbone',heads:'Task Heads',training:'Training',intuition:'Intuition Guide'};
+    document.querySelectorAll('nav button').forEach(b => {
+      if (b.textContent === labels[id]) b.classList.add('active');
+    });
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+</script>
+</body>
+</html>

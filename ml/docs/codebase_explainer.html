@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VocalStars — Codebase Deep Dive</title>
+<style>
+:root {
+  --bg:#0c0e18; --card:#13151f; --card2:#1a1d2b; --border:#252836;
+  --p:#a78bfa; --b:#60a5fa; --g:#34d399; --o:#fb923c; --pk:#f472b6; --y:#fbbf24;
+  --text:#e2e4f0; --muted:#6b7280; --dim:#3a3d50;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.65}
+a{color:var(--b);text-decoration:none}
+
+/* nav */
+header{padding:28px 32px 0;border-bottom:1px solid var(--border)}
+header h1{font-size:1.7rem;color:var(--y);letter-spacing:.5px}
+header p{color:var(--muted);font-size:13px;margin-top:4px;margin-bottom:16px}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-top:12px}
+nav button{padding:9px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;transition:.2s;white-space:nowrap}
+nav button:hover{color:var(--text)}
+nav button.on{color:var(--y);border-bottom-color:var(--y)}
+
+.page{display:none;padding:32px;max-width:1280px;margin:0 auto}
+.page.on{display:block}
+h2{font-size:1.25rem;color:var(--y);margin-bottom:20px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:.95rem;color:var(--text);margin-bottom:8px}
+p{color:#b0b4cc;margin-bottom:10px}
+
+/* grid helpers */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.g32{display:grid;grid-template-columns:2fr 1fr;gap:24px}
+@media(max-width:800px){.g2,.g3,.g32{grid-template-columns:1fr}}
+
+/* cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px}
+.card h3{margin-bottom:10px}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;margin:2px}
+code{background:#ffffff0d;padding:1px 6px;border-radius:4px;font-size:12px;font-family:monospace}
+pre{background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;overflow-x:auto;line-height:1.8;margin:10px 0}
+pre .c{color:var(--muted)}
+pre .k{color:var(--p)}
+pre .s{color:var(--g)}
+pre .n{color:var(--b)}
+pre .v{color:var(--o)}
+
+/* file tree */
+.tree{font-family:monospace;font-size:13px;line-height:2}
+.tree-item{cursor:pointer;padding:2px 8px;border-radius:6px;transition:.15s;display:flex;align-items:center;gap:8px}
+.tree-item:hover{background:var(--card2)}
+.tree-item.active{background:#a78bfa18;color:var(--p)}
+.tree-indent{margin-left:20px}
+.file-badge{font-size:10px;padding:1px 7px;border-radius:8px;margin-left:auto}
+
+/* output visualiser */
+canvas{border-radius:8px;display:block;width:100%}
+.vis-wrap{background:#0a0c14;border:1px solid var(--border);border-radius:10px;padding:16px;position:relative}
+.vis-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+.leg{display:flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%}
+
+/* signal meter */
+.meter-row{display:flex;align-items:center;gap:10px;margin:6px 0}
+.meter-label{width:130px;font-size:12px;color:var(--muted);text-align:right}
+.meter-track{flex:1;height:14px;background:#ffffff08;border-radius:7px;overflow:hidden}
+.meter-fill{height:100%;border-radius:7px;transition:width .3s}
+.meter-val{width:50px;font-size:12px;font-family:monospace}
+
+/* technique chips */
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{padding:6px 14px;border-radius:20px;font-size:12px;border:1px solid;cursor:pointer;transition:.2s}
+.chip:hover{opacity:.8}
+.chip.on{font-weight:700}
+
+/* timeline */
+.timeline{position:relative;padding-left:32px}
+.tl-line{position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--dim)}
+.tl-item{position:relative;margin-bottom:18px}
+.tl-dot{position:absolute;left:-26px;top:4px;width:12px;height:12px;border-radius:50%;border:2px solid}
+.tl-body{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px}
+.tl-body h4{margin-bottom:4px;font-size:.9rem}
+.tl-body p{font-size:13px;margin:0;color:var(--muted)}
+
+/* callout */
+.callout{border-left:3px solid;padding:10px 14px;border-radius:0 8px 8px 0;background:#ffffff05;margin:12px 0;font-size:13px;color:#c8cde0}
+.callout strong{display:block;margin-bottom:3px}
+
+/* tabs inside page */
+.subtabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.subtab{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:.15s}
+.subtab.on{background:var(--p);color:#fff;border-color:var(--p)}
+.subpage{display:none}.subpage.on{display:block}
+
+/* control panel */
+.ctrl{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+.ctrl label{font-size:12px;color:var(--muted)}
+.ctrl input[type=range]{width:120px;accent-color:var(--p)}
+.ctrl select{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px}
+.ctrl button{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text);cursor:pointer;font-size:12px}
+.ctrl button:hover{border-color:var(--p);color:var(--p)}
+
+/* design-reason box */
+.reason{display:flex;gap:12px;align-items:flex-start;background:var(--card2);border-radius:8px;padding:14px;margin:8px 0}
+.reason-icon{font-size:20px;flex-shrink:0}
+.reason-body p{margin:0;font-size:13px;color:var(--muted)}
+.reason-body h4{font-size:.88rem;margin-bottom:3px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VocalStars — Codebase Deep Dive</h1>
+  <p>Techniques · File Design · Output Signals · Interactive Demos</p>
+  <nav>
+    <button class="on" onclick="go('files')">📁 Codebase Map</button>
+    <button onclick="go('outputs')">📡 The 3 Output Signals</button>
+    <button onclick="go('techniques')">🔬 Techniques</button>
+    <button onclick="go('flow')">🔄 Full Data Flow</button>
+    <button onclick="go('design')">🏗 Design Philosophy</button>
+    <button onclick="go('math')">🧮 Math &amp; Formulas</button>
+  </nav>
+</header>
+
+<!-- ═══════════════════ CODEBASE MAP ═══════════════════ -->
+<div id="files" class="page on">
+  <h2>📁 Codebase Map — Every File Explained</h2>
+  <div class="g32">
+    <div>
+      <!-- Tree -->
+      <div class="card" style="font-size:13px">
+        <div class="tree">
+          <div class="tree-item" onclick="fileInfo('root')">📦 <strong>ml/</strong></div>
+
+          <div class="tree-indent">
+            <div class="tree-item" onclick="fileInfo('pipeline')">📄 pipeline.py <span class="file-badge" style="background:#60a5fa22;color:var(--b)">entry point</span></div>
+
+            <div class="tree-item" onclick="fileInfo('model_dir')">📂 _model/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('backbone')">📄 backbone.py <span class="file-badge" style="background:#a78bfa22;color:var(--p)">backbone</span></div>
+              <div class="tree-item" onclick="fileInfo('voicecoach')">📄 voice_coach.py <span class="file-badge" style="background:#a78bfa22;color:var(--p)">full model</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('feat_dir')">📂 feature_extraction/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('mel')">📄 mel.py <span class="file-badge" style="background:#34d39922;color:var(--g)">DSP</span></div>
+              <div class="tree-item" onclick="fileInfo('audio_utils')">📄 audio_utils.py <span class="file-badge" style="background:#34d39922;color:var(--g)">DSP</span></div>
+              <div class="tree-item" onclick="fileInfo('label_utils')">📄 label_utils.py <span class="file-badge" style="background:#34d39922;color:var(--g)">DSP</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('pitch_dir')">📂 pitch_detection/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('pitch_model')">📄 model.py <span class="file-badge" style="background:#60a5fa22;color:var(--b)">nn.Module</span></div>
+              <div class="tree-item" onclick="fileInfo('pitch_detector')">📄 detector.py <span class="file-badge" style="background:#fb923c22;color:var(--o)">detector</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('rhythm_dir')">📂 rhythm_analysis/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('rhythm_ext')">📄 extractor.py <span class="file-badge" style="background:#34d39922;color:var(--g)">DSP</span></div>
+              <div class="tree-item" onclick="fileInfo('rhythm_model')">📄 model.py <span class="file-badge" style="background:#60a5fa22;color:var(--b)">nn.Module</span></div>
+              <div class="tree-item" onclick="fileInfo('rhythm_det')">📄 rhythm_detector.py <span class="file-badge" style="background:#fb923c22;color:var(--o)">detector</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('breath_dir')">📂 breath_analysis/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('breath_ext')">📄 extractor.py <span class="file-badge" style="background:#34d39922;color:var(--g)">DSP</span></div>
+              <div class="tree-item" onclick="fileInfo('breath_model')">📄 model.py <span class="file-badge" style="background:#60a5fa22;color:var(--b)">nn.Module</span></div>
+              <div class="tree-item" onclick="fileInfo('breath_det')">📄 detector.py <span class="file-badge" style="background:#fb923c22;color:var(--o)">detector</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('coaching_dir')">📂 coaching_engine/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('scorer')">📄 scorer.py <span class="file-badge" style="background:#f472b622;color:var(--pk)">scoring</span></div>
+              <div class="tree-item" onclick="fileInfo('feedback')">📄 feedback.py <span class="file-badge" style="background:#f472b622;color:var(--pk)">output</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('data_dir')">📂 data/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('base_dataset')">📄 base_dataset.py <span class="file-badge" style="background:#fbbf2422;color:var(--y)">abstract</span></div>
+              <div class="tree-item" onclick="fileInfo('datasets')">📄 *_dataset.py × 7 <span class="file-badge" style="background:#fbbf2422;color:var(--y)">loaders</span></div>
+              <div class="tree-item" onclick="fileInfo('combined')">📄 combined_dataset.py <span class="file-badge" style="background:#fbbf2422;color:var(--y)">concat</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('training_dir')">📂 training/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('train')">📄 train.py <span class="file-badge" style="background:#a78bfa22;color:var(--p)">main loop</span></div>
+              <div class="tree-item" onclick="fileInfo('losses')">📄 losses.py <span class="file-badge" style="background:#a78bfa22;color:var(--p)">loss fns</span></div>
+              <div class="tree-item" onclick="fileInfo('evaluate')">📄 evaluate.py <span class="file-badge" style="background:#a78bfa22;color:var(--p)">metrics</span></div>
+            </div>
+
+            <div class="tree-item" onclick="fileInfo('export_dir')">📂 export/</div>
+            <div class="tree-indent">
+              <div class="tree-item" onclick="fileInfo('onnx')">📄 to_onnx.py → to_tflite.py <span class="file-badge" style="background:#34d39922;color:var(--g)">deploy</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info panel -->
+    <div>
+      <div id="file-panel" class="card" style="min-height:300px">
+        <h3 id="fp-title" style="color:var(--y);margin-bottom:12px">Click any file to learn about it</h3>
+        <div id="fp-body" style="color:var(--muted);font-size:13px">
+          Select a file or folder from the tree on the left.
+        </div>
+      </div>
+
+      <!-- Pattern legend -->
+      <div class="card" style="margin-top:16px">
+        <h3>The 3-File Pattern (every feature folder)</h3>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+          <div class="reason">
+            <div class="reason-icon">🧮</div>
+            <div class="reason-body">
+              <h4><code>extractor.py</code> — Pure DSP, no PyTorch</h4>
+              <p>librosa + numpy only. Runs without a GPU. Used for labelling training data and as a fallback when no model is loaded.</p>
+            </div>
+          </div>
+          <div class="reason">
+            <div class="reason-icon">🧠</div>
+            <div class="reason-body">
+              <h4><code>model.py</code> — PyTorch nn.Module head</h4>
+              <p>The learnable head (Linear / Conv layers). Inputs are backbone embeddings. Outputs are logits or probabilities.</p>
+            </div>
+          </div>
+          <div class="reason">
+            <div class="reason-icon">🔌</div>
+            <div class="reason-body">
+              <h4><code>detector.py</code> — Combines both, called by pipeline.py</h4>
+              <p>Tries the model path first; falls back to DSP extractor. This is the only file pipeline.py imports — it hides whether we have a trained model or not.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ OUTPUTS ═══════════════════ -->
+<div id="outputs" class="page">
+  <h2>📡 The 3 Output Signals — What They Mean</h2>
+
+  <div class="subtabs">
+    <button class="subtab on" onclick="sub('outputs','pitch')">🎵 Pitch Hz per Frame</button>
+    <button class="subtab" onclick="sub('outputs','onset')">🥁 Onset Probability</button>
+    <button class="subtab" onclick="sub('outputs','breath')">💨 Breath Detection</button>
+  </div>
+
+  <!-- PITCH -->
+  <div id="outputs-pitch" class="subpage on">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3>What is <code>pitch_hz</code> per frame?</h3>
+          <p>The model outputs a <strong>pitch value in Hz for every 10ms frame</strong> of audio. Hz = Hertz = vibrations per second — the physical unit of frequency that our ears perceive as pitch.</p>
+          <p>Middle C on a piano is <strong>261.6 Hz</strong>. The A above it is <strong>440 Hz</strong>. An octave higher doubles the frequency.</p>
+          <div class="callout" style="border-color:var(--b)">
+            <strong>In VocalStars:</strong>
+            pitch_hz per frame = "what exact note is the singer hitting <em>right now</em>, 100 times per second"
+          </div>
+          <p>This is <strong>not</strong> a single number for the whole clip. It's an array — one Hz value per 10ms window. Over a 3-second clip, you get 300 values, one per frame.</p>
+
+          <div style="margin-top:14px">
+            <h3>How is it computed?</h3>
+            <p>1. Model outputs <code>pitch_logits (B, T, 360)</code> — raw scores for 360 frequency bins</p>
+            <p>2. <code>sigmoid()</code> converts to probabilities → a "posteriorgram"</p>
+            <p>3. <strong>Viterbi decoding</strong> finds the smoothest path through the posteriorgram over time (avoids random frame-to-frame jumps)</p>
+            <p>4. The winning bin index is converted to Hz: <code>31.7 × 2^(bin × 20 / 1200)</code></p>
+          </div>
+
+          <div class="callout" style="border-color:var(--p);margin-top:12px">
+            <strong>The 360 bins:</strong> 20 cents each, from B0 (31.7 Hz) to ~8kHz. 20 cents ≈ 1/5 of a semitone — finer than human pitch discrimination (~10 cents).
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Pitch stability score</h3>
+          <p>The detector computes: <code>1 − std(voiced_frames) / mean(voiced_frames)</code></p>
+          <p>A score of <strong>1.0</strong> = perfectly stable (no variation). <strong>0.0</strong> = all over the place. This feeds directly into the coaching feedback.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Live Pitch Curve Simulator</div>
+          <canvas id="pitchCanvas" height="180"></canvas>
+          <div class="legend">
+            <div class="leg"><div class="dot" style="background:var(--b)"></div>pitch_hz (voiced)</div>
+            <div class="leg"><div class="dot" style="background:var(--dim)"></div>unvoiced (0 Hz)</div>
+            <div class="leg"><div class="dot" style="background:var(--y)"></div>target note</div>
+          </div>
+          <div class="ctrl">
+            <label>Stability</label>
+            <input type="range" id="stab" min="0" max="100" value="70" oninput="redrawPitch()">
+            <label>Note</label>
+            <select id="notesel" onchange="redrawPitch()">
+              <option value="261.6">C4 (261 Hz)</option>
+              <option value="293.7">D4 (293 Hz)</option>
+              <option value="329.6">E4 (329 Hz)</option>
+              <option value="392.0" selected>G4 (392 Hz)</option>
+              <option value="440.0">A4 (440 Hz)</option>
+              <option value="523.2">C5 (523 Hz)</option>
+            </select>
+            <div id="stab-score" style="font-size:13px;color:var(--g)">Score: 0.70</div>
+          </div>
+        </div>
+
+        <div class="vis-wrap" style="margin-top:16px">
+          <div class="vis-title">360-bin Posteriorgram (single frame)</div>
+          <canvas id="posterCanvas" height="120"></canvas>
+          <div class="ctrl">
+            <label>Confidence</label>
+            <input type="range" id="conf" min="10" max="100" value="70" oninput="redrawPoster()">
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">Each bar is one of 360 bins (20 cents wide). The model outputs the probability that the current frame's pitch falls in each bin. Viterbi picks the best path, not just the highest bar.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONSET -->
+  <div id="outputs-onset" class="subpage">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3>What is <code>onset_probability</code> per frame?</h3>
+          <p>An <strong>onset</strong> is the moment a new note or syllable <em>begins</em>. The model outputs a probability (0–1) at every 10ms frame answering: <em>"is this the start of a new note?"</em></p>
+
+          <div class="callout" style="border-color:var(--g)">
+            <strong>Think of it like this:</strong> If you clap once per beat while someone sings, each clap marks an onset. The model is learning to do this automatically.
+          </div>
+
+          <p>Onset detection is crucial for rhythm coaching — it lets the system measure whether the singer is hitting notes on the beat, early, or late.</p>
+
+          <h3 style="margin-top:14px">Why is it sparse?</h3>
+          <p>In a typical 5-second singing clip at 10ms per frame = 500 frames total. Maybe <strong>15–25 frames</strong> are actually onsets. That's only ~4% of frames.</p>
+          <p>This is called <strong>class imbalance</strong>. Without correction, the model learns "always predict 0" which is 96% accurate but completely useless.</p>
+          <p>Fix: the onset loss applies a <strong>10× weight</strong> to positive (onset) frames — the model is penalised 10× harder for missing an onset than for a false alarm.</p>
+
+          <h3 style="margin-top:14px">Training label source</h3>
+          <p>During training, onset labels come from three sources depending on the dataset:</p>
+          <div style="margin-left:10px;font-size:13px">
+            <p>• <strong>GTSinger</strong>: phoneme <code>ph_start</code> times from JSON sidecars → converted to frame indices</p>
+            <p>• <strong>TextGrid files</strong>: phoneme boundaries parsed by the <code>textgrid</code> library</p>
+            <p>• <strong>Fallback</strong>: <code>librosa.onset.onset_detect()</code> — DSP heuristic based on spectral flux</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Onset Probability Visualiser</div>
+          <canvas id="onsetCanvas" height="200"></canvas>
+          <div class="legend">
+            <div class="leg"><div class="dot" style="background:#ffffff30"></div>audio energy</div>
+            <div class="leg"><div class="dot" style="background:var(--g)"></div>onset_prob</div>
+            <div class="leg"><div class="dot" style="background:var(--o)"></div>threshold (0.5)</div>
+          </div>
+          <div class="ctrl">
+            <label>Pattern</label>
+            <select id="onsetpat" onchange="redrawOnset()">
+              <option value="regular">Regular beats</option>
+              <option value="irregular">Irregular timing</option>
+              <option value="fast">Fast notes</option>
+            </select>
+            <label>Threshold</label>
+            <input type="range" id="onsetThr" min="10" max="90" value="50" oninput="redrawOnset()">
+            <div id="onset-beats" style="font-size:13px;color:var(--g)"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>RhythmHead Architecture</h3>
+          <pre><span class="c"># input: (B, 384, T) from backbone</span>
+x = ReLU(Conv1d(384→128, k=3, pad=1))
+x = ReLU(Conv1d(128→64,  k=3, pad=1))
+x = sigmoid(Conv1d(64→1, k=1))
+<span class="c"># output: (B, 1, T) onset probs per frame</span></pre>
+          <p style="font-size:13px;margin-top:8px">The 1×1 final conv is a per-frame linear classifier on 64-dim features. No pooling = full temporal resolution preserved.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BREATH -->
+  <div id="outputs-breath" class="subpage">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3>What is <code>breath_bool</code> / <code>breath_prob</code>?</h3>
+          <p>A <strong>single probability per audio clip</strong> answering: <em>"does this clip start with a breath intake?"</em></p>
+          <p>Unlike pitch and onset (which are per-frame), breath is a <strong>clip-level</strong> detection. The model looks at the whole clip and makes one binary decision.</p>
+
+          <div class="callout" style="border-color:var(--o)">
+            <strong>Why is breath coaching important?</strong> Singers who audibly "gulp" before phrases have poor breath support and vocal placement. Identifying it is the first step to fixing it.
+          </div>
+
+          <h3 style="margin-top:14px">How is it detected?</h3>
+          <p>Two-layer approach:</p>
+          <p><strong>1. DSP heuristic (extractor.py)</strong> — used for training labels:</p>
+          <div style="margin-left:12px;font-size:13px">
+            <p>• <strong>Silence</strong>: RMS &lt; 0.01 → "no breath, just silence"</p>
+            <p>• <strong>Breath</strong>: RMS 0.01–0.05 AND ZCR &gt; 0.1 AND centroid &lt; 2000 Hz</p>
+            <p>• <strong>Singing</strong>: RMS &gt; 0.05 → "definitely phonating"</p>
+          </div>
+          <p style="margin-top:8px"><strong>2. Neural (model.py)</strong> — used at inference:</p>
+          <div style="margin-left:12px;font-size:13px">
+            <p>Backbone features <code>(B, 384, T)</code> → <code>mean(dim=-1)</code> → <code>(B, 384)</code></p>
+            <p>→ FC(384→64) → ReLU → FC(64→1) → sigmoid → <code>breath_prob</code></p>
+          </div>
+
+          <h3 style="margin-top:14px">Why average pooling, not per-frame?</h3>
+          <p>A breath is a sustained ~200ms sound, not a single frame event. Averaging over all T frames collapses the time axis — the model sees the "average character" of the clip, which is sufficient to distinguish "starts with breathy intake" from "starts singing immediately".</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Breath Detection — Energy Envelope View</div>
+          <canvas id="breathCanvas" height="200"></canvas>
+          <div class="legend">
+            <div class="leg"><div class="dot" style="background:var(--b)"></div>RMS energy</div>
+            <div class="leg"><div class="dot" style="background:var(--g)"></div>ZCR</div>
+            <div class="leg"><div class="dot" style="background:var(--o)"></div>spectral centroid</div>
+          </div>
+          <div class="ctrl">
+            <label>Clip type</label>
+            <select id="breathtype" onchange="redrawBreath()">
+              <option value="breath">With breath intake</option>
+              <option value="singing">Direct singing</option>
+              <option value="silence">Silence then singing</option>
+            </select>
+          </div>
+          <div id="breath-verdict" style="margin-top:12px;padding:10px;border-radius:8px;font-size:13px;font-weight:600"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>DSP Feature Breakdown</h3>
+          <div id="breath-meters">
+            <div class="meter-row"><div class="meter-label">RMS Energy</div><div class="meter-track"><div class="meter-fill" id="m-rms" style="background:var(--b);width:30%"></div></div><div class="meter-val" id="v-rms">0.030</div></div>
+            <div class="meter-row"><div class="meter-label">Zero Cross Rate</div><div class="meter-track"><div class="meter-fill" id="m-zcr" style="background:var(--g);width:40%"></div></div><div class="meter-val" id="v-zcr">0.15</div></div>
+            <div class="meter-row"><div class="meter-label">Spectral Centroid</div><div class="meter-track"><div class="meter-fill" id="m-cen" style="background:var(--o);width:25%"></div></div><div class="meter-val" id="v-cen">1200 Hz</div></div>
+            <div class="meter-row"><div class="meter-label">Classification</div><div class="meter-track"><div class="meter-fill" id="m-cls" style="background:var(--pk);width:70%"></div></div><div class="meter-val" id="v-cls">breath</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TECHNIQUES ═══════════════════ -->
+<div id="techniques" class="page">
+  <h2>🔬 Techniques Deep Dive</h2>
+
+  <div class="chip-row">
+    <div class="chip on" style="border-color:var(--p);color:var(--p)" onclick="showTech('viterbi')">Viterbi Decoding</div>
+    <div class="chip" style="border-color:var(--b);color:var(--b)" onclick="showTech('yin')">YIN Pitch (librosa)</div>
+    <div class="chip" style="border-color:var(--g);color:var(--g)" onclick="showTech('crepe')">CREPE-style Classification</div>
+    <div class="chip" style="border-color:var(--o);color:var(--o)" onclick="showTech('causal')">Causal Convolution</div>
+    <div class="chip" style="border-color:var(--pk);color:var(--pk)" onclick="showTech('gru')">GRU Memory</div>
+    <div class="chip" style="border-color:var(--y);color:var(--y)" onclick="showTech('focal')">Focal Loss</div>
+    <div class="chip" style="border-color:var(--muted);color:var(--muted)" onclick="showTech('quant')">Int8 Quantisation</div>
+  </div>
+
+  <div id="tech-panel">
+
+    <div id="tech-viterbi" class="tech-card">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--p)">Viterbi Decoding — Smoothing the Pitch Track</h3>
+          <p><strong>Problem:</strong> The raw model output (posteriorgram) can jump wildly frame-to-frame — the model might say "A4" then "C3" then "A4" across consecutive 10ms frames. That's physically impossible for a real singer.</p>
+          <p><strong>Solution:</strong> Viterbi finds the <em>most likely sequence</em> of pitch states subject to a constraint: <strong>pitch can't change more than ±12 bins (±240 cents) per frame</strong>.</p>
+
+          <div class="callout" style="border-color:var(--p)">
+            <strong>State space:</strong> 360 voiced bins + 1 unvoiced state = 361 total states per frame.
+            The algorithm finds the best <em>path</em> through this state space over time.
+          </div>
+
+          <h3 style="margin-top:14px">Two variants</h3>
+          <p><strong>Offline Viterbi</strong> (<code>viterbi_decode</code>): processes all frames at once using backtracing. More accurate — can look ahead. Used for evaluation.</p>
+          <p><strong>Realtime Viterbi</strong> (<code>viterbi_decode_realtime</code>): processes frame-by-frame, left-to-right, no backtracing. Slightly less accurate but <strong>works in a streaming context</strong> — used in the live phone app.</p>
+
+          <h3 style="margin-top:14px">Onset/offset penalty</h3>
+          <p>Switching between voiced and unvoiced states costs <code>onset_penalty=2.0</code> in log-space. This makes the model "commit" to voicing — it won't randomly flip unvoiced for a single frame unless the evidence is overwhelming.</p>
+        </div>
+        <div>
+          <div class="vis-wrap">
+            <div class="vis-title">Viterbi vs Raw argmax</div>
+            <canvas id="vitCanvas" height="220"></canvas>
+            <div class="legend">
+              <div class="leg"><div class="dot" style="background:#ffffff30"></div>raw argmax (noisy)</div>
+              <div class="leg"><div class="dot" style="background:var(--p)"></div>Viterbi path (smooth)</div>
+              <div class="leg"><div class="dot" style="background:var(--y)"></div>true pitch</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3>Dynamic Programming Intuition</h3>
+            <p>Viterbi is dynamic programming over a trellis. At each frame, instead of asking "what's the best pitch now?", it asks "what's the best pitch now, <em>given the best path to get here</em>?"</p>
+            <div class="callout" style="border-color:var(--p)">
+              <strong>Analogy:</strong> GPS routing — not just "which road is fastest right now" but "which route gets you there fastest overall, including traffic 3 miles ahead."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-yin" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--b)">YIN Pitch Estimation</h3>
+          <p>YIN is a classical DSP algorithm for pitch detection, implemented in librosa as <code>librosa.yin()</code>. It's used to generate <strong>training labels</strong> when ground truth pitch isn't available.</p>
+          <h3 style="margin-top:14px">How it works</h3>
+          <p>1. <strong>Autocorrelation</strong>: correlate the signal with a delayed version of itself. Peaks occur at the fundamental period T₀.</p>
+          <p>2. <strong>Difference function</strong>: d(τ) = sum of squared differences between signal and its τ-shifted version. Minimum at τ = T₀.</p>
+          <p>3. <strong>Cumulative mean normalisation</strong>: removes the bias of d(τ) increasing with τ.</p>
+          <p>4. <strong>Parabolic interpolation</strong>: sub-sample precision — finds the minimum between discrete τ samples.</p>
+          <div class="callout" style="border-color:var(--b)">
+            <strong>In VocalStars:</strong> YIN is the DSP fallback in <code>PitchDetector._analyze_with_librosa()</code> and the label source in all dataset <code>_extract_labels()</code> methods. The trained model learns to do what YIN does, but better.
+          </div>
+        </div>
+        <div class="card">
+          <h3>YIN parameters in the code</h3>
+          <pre><span class="c"># In dataset loaders:</span>
+f0 = librosa.yin(
+    audio,
+    <span class="n">fmin</span>=<span class="v">50</span>,    <span class="c"># 50 Hz = ~G1</span>
+    <span class="n">fmax</span>=<span class="v">2000</span>,  <span class="c"># 2 kHz = ~B6</span>
+    <span class="n">sr</span>=sr
+)
+voiced = f0[f0 > <span class="v">0</span>]          <span class="c"># 0 = unvoiced</span>
+pitch_hz = float(np.median(voiced))</pre>
+          <h3 style="margin-top:14px">Why median, not mean?</h3>
+          <p>A clip might have a few YIN estimation errors (spurious values far from the true pitch). Median is robust to outliers — the middle value of a sorted list is unaffected by extreme values at either end.</p>
+          <div class="callout" style="border-color:var(--b)">
+            <strong>Analogy:</strong> If 10 students score 85, 88, 90, 91, 92, 93, 94, 95, 97, 3 — the mean is pulled down by the one bad score (81.8), but the median is still 91.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-crepe" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--g)">CREPE-style Soft Classification</h3>
+          <p><strong>CREPE</strong> (Convolutional REpresentation for Pitch Estimation) is a 2018 paper that showed classifying pitch into bins outperforms direct regression.</p>
+          <h3 style="margin-top:12px">Why not just regress Hz directly?</h3>
+          <p>Direct regression: output one number = Hz estimate. Problems:</p>
+          <p>• <strong>Loss surface</strong>: mean squared error between 440 Hz and 660 Hz = 48400. Between 440 Hz and 441 Hz = 1. The model "cares" more about large errors even when the perceptual difference is small (one Hz vs one semitone ≈ 25 Hz).</p>
+          <p>• <strong>Uncertainty</strong>: no way to express "I think it's A4 or A5 but not sure."</p>
+
+          <h3 style="margin-top:12px">The soft Gaussian target</h3>
+          <p>Instead of a hard one-hot label, we use a Gaussian bell centred on the target bin:</p>
+          <pre>target[b] = exp(−0.5 × ((cents_to_bin − b) / sigma)²)
+<span class="c"># sigma = 1 bin = 20 cents</span></pre>
+          <p>This means adjacent bins get partial credit — the loss is smooth near the correct pitch.</p>
+        </div>
+        <div>
+          <div class="vis-wrap">
+            <div class="vis-title">Hard label vs Soft Gaussian label</div>
+            <canvas id="gaussCanvas" height="180"></canvas>
+            <div class="ctrl">
+              <label>Target bin</label>
+              <input type="range" id="gaussBin" min="50" max="310" value="180" oninput="redrawGauss()">
+              <label>Sigma</label>
+              <input type="range" id="gaussSig" min="1" max="10" value="1" oninput="redrawGauss()">
+            </div>
+            <div class="legend">
+              <div class="leg"><div class="dot" style="background:var(--dim)"></div>hard one-hot</div>
+              <div class="leg"><div class="dot" style="background:var(--g)"></div>soft Gaussian</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3>Hz recovery at inference</h3>
+            <pre>probs = sigmoid(pitch_logits)  <span class="c"># (T, 360)</span>
+hz = (probs × BINS_HZ).sum(−1) /
+     (probs.sum(−1) + 1e-8)
+<span class="c"># weighted mean over bin frequencies</span></pre>
+            <p style="font-size:13px;margin-top:6px">If probability spreads across two adjacent bins, the Hz estimate naturally falls between them — interpolated for free.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-causal" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--o)">Causal Convolution</h3>
+          <p>A standard 1D convolution with kernel size k=3 and "same" padding looks at frames [t−1, t, t+1] — it needs one frame from the <em>future</em>. This is fine for offline processing but <strong>adds latency to streaming</strong>.</p>
+          <p>Causal padding replaces symmetric padding with left-only padding:</p>
+          <pre><span class="c"># Normal (non-causal):</span>
+F.pad(x, (<span class="v">1</span>, <span class="v">1</span>))  <span class="c"># pad 1 each side</span>
+Conv1d(k=3)      <span class="c"># sees t−1, t, t+1</span>
+
+<span class="c"># Causal:</span>
+F.pad(x, (<span class="v">2</span>, <span class="v">0</span>))  <span class="c"># pad 2 on LEFT only</span>
+Conv1d(k=3)      <span class="c"># sees t−2, t−1, t</span></pre>
+          <div class="callout" style="border-color:var(--o)">
+            <strong>Result:</strong> Frame t's output depends only on frames ≤ t. No lookahead. No added latency. The model can produce output the instant a new frame arrives.
+          </div>
+          <h3 style="margin-top:14px">Streaming buffers</h3>
+          <p>For frame-by-frame inference, <code>NanoPitchEncoder.init_streaming_state()</code> returns <code>conv1_buf</code> and <code>conv2_buf</code> — the 2-frame sliding windows that the causal conv needs. You just shift these buffers each frame instead of recomputing from scratch.</p>
+        </div>
+        <div class="vis-wrap" style="align-self:flex-start">
+          <div class="vis-title">Causal vs Non-causal Receptive Field</div>
+          <canvas id="causalCanvas" height="280"></canvas>
+          <div class="legend">
+            <div class="leg"><div class="dot" style="background:var(--o)"></div>can use (past)</div>
+            <div class="leg"><div class="dot" style="background:var(--pk)"></div>forbidden (future)</div>
+            <div class="leg"><div class="dot" style="background:var(--b)"></div>current frame</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-gru" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--pk)">GRU — Gated Recurrent Unit</h3>
+          <p>A GRU maintains a <strong>hidden state h</strong> that acts as the model's "working memory". Two gates control how this memory updates each frame:</p>
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin:12px 0">
+            <div class="reason">
+              <div class="reason-icon">🔄</div>
+              <div class="reason-body">
+                <h4>Update gate (z)</h4>
+                <p>How much of the old memory to keep vs replace. z=1 → keep old state entirely. z=0 → replace with new input.</p>
+              </div>
+            </div>
+            <div class="reason">
+              <div class="reason-icon">🗑️</div>
+              <div class="reason-body">
+                <h4>Reset gate (r)</h4>
+                <p>How much of the old memory to use when computing the new candidate. r=0 → ignore old state (fresh start for this input).</p>
+              </div>
+            </div>
+          </div>
+
+          <p>These gates let the GRU learn what to remember and forget — e.g., remember the key/tempo, forget transient noise.</p>
+
+          <div class="callout" style="border-color:var(--pk)">
+            <strong>Why 3 stacked GRUs?</strong> Each layer operates on the previous layer's output. GRU1 captures short-term patterns (single phoneme), GRU2 captures syllable-level, GRU3 captures phrase-level context.
+          </div>
+        </div>
+        <div class="card">
+          <h3>Orthogonal init</h3>
+          <p>The recurrent weight matrix W_hh is initialised so its singular values are all 1.0.</p>
+          <p>This prevents the "<strong>vanishing gradient</strong>" problem: when gradients are backpropagated through many time steps, repeatedly multiplying by W_hh can make them shrink exponentially (vanish) or grow (explode).</p>
+          <p>An orthogonal matrix has eigenvalues on the unit circle — it preserves gradient magnitudes through recurrence.</p>
+          <pre><span class="c"># In backbone.py _init_weights:</span>
+for name, param in gru.named_parameters():
+    if <span class="s">"weight_hh"</span> in name:
+        nn.init.orthogonal_(param)</pre>
+          <h3 style="margin-top:14px">vs LSTM</h3>
+          <p>LSTMs have 3 gates and a separate cell state. GRUs have 2 gates, are ~25% fewer parameters, and typically match LSTM performance on short sequences. Better fit for a mobile-constrained model.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-focal" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--y)">Focal Loss & Weighted BCE</h3>
+          <p>Standard binary cross-entropy treats every sample equally. This is fine when classes are balanced. In singing analysis they're not:</p>
+          <div style="margin:10px 0;display:flex;flex-direction:column;gap:6px">
+            <div class="meter-row"><div class="meter-label">Onset frames</div><div class="meter-track"><div class="meter-fill" style="background:var(--g);width:5%"></div></div><div class="meter-val">~5%</div></div>
+            <div class="meter-row"><div class="meter-label">Non-onset</div><div class="meter-track"><div class="meter-fill" style="background:var(--dim);width:95%"></div></div><div class="meter-val">~95%</div></div>
+            <div class="meter-row"><div class="meter-label">Voiced frames</div><div class="meter-track"><div class="meter-fill" style="background:var(--b);width:60%"></div></div><div class="meter-val">~60%</div></div>
+            <div class="meter-row"><div class="meter-label">Breath events</div><div class="meter-track"><div class="meter-fill" style="background:var(--o);width:15%"></div></div><div class="meter-val">~15%</div></div>
+          </div>
+          <h3 style="margin-top:14px">Weighted BCE (onset loss)</h3>
+          <p>Simply multiply the loss by 10 for positive frames: <code>loss × pos_weight</code>. Easy, effective.</p>
+          <pre>weights = ones_like(onset_targets)
+weights[onset_targets > 0.5] = <span class="v">10.0</span>
+loss = (weights × BCE(pred, target)).mean()</pre>
+
+          <h3 style="margin-top:14px">Focal BCE (VAD loss)</h3>
+          <p>Focal loss additionally down-weights <em>easy</em> examples:</p>
+          <pre>pt = pred if target==1 else (1−pred)
+focal_weight = (1 − pt)^gamma
+loss = focal_weight × pos_weight × BCE</pre>
+          <p>When the model is very confident (pt→1), <code>(1−pt)^γ ≈ 0</code> — easy examples barely contribute. Hard examples (pt≈0.5) dominate training. This focuses learning on the boundary cases.</p>
+        </div>
+        <div class="card">
+          <h3>Loss weights in MultiTaskLoss</h3>
+          <div style="margin:14px 0">
+            <div class="meter-row"><div class="meter-label">Pitch (×1.0)</div><div class="meter-track"><div class="meter-fill" style="background:var(--b);width:53%"></div></div><div class="meter-val">Primary</div></div>
+            <div class="meter-row"><div class="meter-label">Rhythm (×0.5)</div><div class="meter-track"><div class="meter-fill" style="background:var(--g);width:27%"></div></div><div class="meter-val">Secondary</div></div>
+            <div class="meter-row"><div class="meter-label">Breath (×0.3)</div><div class="meter-track"><div class="meter-fill" style="background:var(--o);width:16%"></div></div><div class="meter-val">Tertiary</div></div>
+            <div class="meter-row"><div class="meter-label">VAD (×0.1)</div><div class="meter-track"><div class="meter-fill" style="background:var(--pk);width:5%"></div></div><div class="meter-val">Auxiliary</div></div>
+          </div>
+          <div class="callout" style="border-color:var(--y)">
+            <strong>Design decision:</strong> Pitch gets the highest weight because it's the most actionable coaching signal. Breath weight is low because the DSP labels are noisy (RMS heuristic isn't perfect).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tech-quant" class="tech-card" style="display:none">
+      <div class="g2">
+        <div class="card">
+          <h3 style="color:var(--muted)">Int8 Quantisation</h3>
+          <p>The trained model uses 32-bit floating point weights (fp32). Each parameter = 4 bytes. 541K params × 4 = ~2.1 MB.</p>
+          <p><strong>Int8 quantisation</strong> maps every weight from a float to an 8-bit integer (0–255) using a per-layer scale factor:</p>
+          <pre>w_int8 = round(w_float32 / scale)
+scale = max(|w|) / 127</pre>
+          <p>Reduces: 4 bytes → 1 byte per weight = <strong>4× compression → ~0.5 MB</strong>.</p>
+          <h3 style="margin-top:14px">Accuracy impact</h3>
+          <p>Quantisation error is small if the weight distribution is well-behaved (no extreme outliers). For well-trained models it typically costs &lt;1% accuracy.</p>
+          <div class="callout" style="border-color:var(--muted)">
+            <strong>Hardware benefit:</strong> Most modern phones have INT8 SIMD instructions that run 4× faster than fp32 on the same operations. So quantisation gives ~4× speed AND ~4× size reduction.
+          </div>
+        </div>
+        <div class="card">
+          <h3>Export pipeline</h3>
+          <div class="timeline" style="margin-top:10px">
+            <div class="tl-line"></div>
+            <div class="tl-item">
+              <div class="tl-dot" style="border-color:var(--p);background:var(--p)22"></div>
+              <div class="tl-body">
+                <h4>PyTorch .pt checkpoint</h4>
+                <p>Trained weights. Full fp32. Used for continuing training or evaluation.</p>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot" style="border-color:var(--b);background:var(--b)22"></div>
+              <div class="tl-body">
+                <h4>ONNX export (<code>to_onnx.py</code>)</h4>
+                <p>Open Neural Network Exchange — a portable format readable by many runtimes. Strips PyTorch-specific code, traces the compute graph.</p>
+              </div>
+            </div>
+            <div class="tl-item">
+              <div class="tl-dot" style="border-color:var(--g);background:var(--g)22"></div>
+              <div class="tl-body">
+                <h4>TFLite + Int8 (<code>to_tflite.py</code>)</h4>
+                <p>TensorFlow Lite format, with INT8 quantisation applied. Runs on Android/iOS via TFLite runtime. Target: &lt;5 MB, &lt;50ms latency.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ FLOW ═══════════════════ -->
+<div id="flow" class="page">
+  <h2>🔄 Full Data Flow — From Singing to Coaching Feedback</h2>
+
+  <div class="g2">
+    <div>
+      <div class="timeline">
+        <div class="tl-line"></div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--muted);background:var(--muted)22"></div>
+          <div class="tl-body">
+            <h4>1. Microphone input</h4>
+            <p>16 kHz mono audio, captured in 256-sample frames (16ms) with 50% overlap → 8ms latency per output.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--g);background:var(--g)22"></div>
+          <div class="tl-body">
+            <h4>2. <code>MelExtractor.compute_tensor()</code></h4>
+            <p>STFT (400-sample window, 160-sample hop) → 40 mel filter bands → log(mel + 1e-9). Output: (1, 40, T) float32 tensor.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--p);background:var(--p)22"></div>
+          <div class="tl-body">
+            <h4>3. <code>NanoPitchEncoder.forward()</code></h4>
+            <p>Causal conv block (40→96) + 3× GRU (96→96 each) + skip-concat. Output: (B, T, 384) frame embeddings. GRU hidden states h1/h2/h3 are passed to the next call.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--b);background:var(--b)22"></div>
+          <div class="tl-body">
+            <h4>4. <code>PitchHead.forward()</code> + <code>logits_to_hz()</code></h4>
+            <p>Linear(384→360) → pitch_logits. Sigmoid → posteriorgram. Realtime Viterbi → smooth f0_hz array. Linear(384→1) → VAD probability.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--g);background:var(--g)22"></div>
+          <div class="tl-body">
+            <h4>5. <code>RhythmHead.forward()</code></h4>
+            <p>Features permuted to (B, 384, T). Conv1d stack → per-frame onset_probs. Threshold at 0.5 → onset frame indices.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--o);background:var(--o)22"></div>
+          <div class="tl-body">
+            <h4>6. <code>BreathHead.forward()</code></h4>
+            <p>Features averaged over T → (B, 384). FC → breath_prob scalar. Threshold at 0.5 → breath_bool.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--pk);background:var(--pk)22"></div>
+          <div class="tl-body">
+            <h4>7. <code>coaching_engine/scorer.py</code></h4>
+            <p>Converts raw signals to 0–1 scores: pitch stability from std(f0), rhythm from timing variance of onsets, breath support from breath_prob.</p>
+          </div>
+        </div>
+
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:var(--y);background:var(--y)22"></div>
+          <div class="tl-body">
+            <h4>8. <code>coaching_engine/feedback.py</code></h4>
+            <p>Maps scores → actionable text. score &lt; 0.7 on pitch → "Slow sustained scales". score &lt; 0.7 on rhythm → "Practice with metronome". Returns summary + exercises.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h3>Sample output from <code>pipeline.analyze_audio_file()</code></h3>
+        <pre>{
+  <span class="s">"pitch"</span>: {
+    <span class="s">"stability_score"</span>: <span class="v">0.82</span>,
+    <span class="s">"estimated_notes"</span>: [<span class="s">"G4"</span>, <span class="s">"A4"</span>, <span class="s">"B4"</span>],
+    <span class="s">"pitch_curve"</span>: [<span class="v">392.0</span>, <span class="v">394.1</span>, <span class="v">391.5</span>, ...],
+    <span class="c">  ↑ one Hz value per 10ms frame</span>
+    <span class="s">"note_transitions"</span>: [(<span class="s">"G4"</span>,<span class="s">"A4"</span>), ...]
+  },
+  <span class="s">"rhythm"</span>: {
+    <span class="s">"tempo_bpm"</span>: <span class="v">120.0</span>,
+    <span class="s">"onset_times_ms"</span>: [<span class="v">0</span>, <span class="v">500</span>, <span class="v">1000</span>, ...],
+    <span class="c">  ↑ when each new note started</span>
+    <span class="s">"timing_variance"</span>: <span class="v">0.12</span>
+  },
+  <span class="s">"breath"</span>: {
+    <span class="s">"breath_detected"</span>: <span class="k">True</span>,
+    <span class="s">"support_score"</span>: <span class="v">0.43</span>
+  },
+  <span class="s">"coaching_outline"</span>: {
+    <span class="s">"summary"</span>: <span class="s">"Overall score: 62%..."</span>,
+    <span class="s">"focus_areas"</span>: [<span class="s">"breath control"</span>],
+    <span class="s">"suggested_exercises"</span>: [
+      <span class="s">"Diaphragmatic breathing..."</span>
+    ]
+  }
+}</pre>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>What each number means in plain English</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;font-size:13px">
+          <div class="reason"><div class="reason-icon">🎵</div><div class="reason-body"><h4>pitch_curve: [392.0, 394.1, ...]</h4><p>The singer is on G4 (392 Hz). The slight wobble (+2 Hz) is normal vibrato. If values jumped to 200 Hz randomly, that's a problem.</p></div></div>
+          <div class="reason"><div class="reason-icon">🥁</div><div class="reason-body"><h4>onset_times_ms: [0, 500, 1000]</h4><p>New notes at 0ms, 500ms, 1000ms = 120 BPM perfectly on beat. If these were [0, 480, 1020] = slightly rushed then delayed = timing problem.</p></div></div>
+          <div class="reason"><div class="reason-icon">💨</div><div class="reason-body"><h4>breath_detected: True, support_score: 0.43</h4><p>Audible breath intake detected. Score below 0.7 threshold → coaching feedback generated about breath support.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ DESIGN ═══════════════════ -->
+<div id="design" class="page">
+  <h2>🏗 Design Philosophy — Why Is the Code Structured This Way?</h2>
+  <div class="g2">
+    <div>
+      <div class="card">
+        <h3>Why extractor / model / detector in every folder?</h3>
+        <p>Each feature (pitch, rhythm, breath) has this same 3-file pattern:</p>
+        <div class="timeline" style="margin-top:12px">
+          <div class="tl-line"></div>
+          <div class="tl-item">
+            <div class="tl-dot" style="border-color:var(--g);background:var(--g)22"></div>
+            <div class="tl-body">
+              <h4><code>extractor.py</code> — Pure DSP</h4>
+              <p>No PyTorch, no GPU. Runs on any machine. Used to generate training labels from raw audio. Can run as a standalone tool. This is the "ground truth generator."</p>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="border-color:var(--b);background:var(--b)22"></div>
+            <div class="tl-body">
+              <h4><code>model.py</code> — nn.Module head</h4>
+              <p>Only the learnable head layers. Takes backbone embeddings as input. Has no awareness of audio loading or DSP. Easily exported to ONNX.</p>
+            </div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-dot" style="border-color:var(--o);background:var(--o)22"></div>
+            <div class="tl-body">
+              <h4><code>detector.py</code> — Unified interface</h4>
+              <p>Takes raw audio. Tries the model path if a trained model exists; falls back to DSP. <code>pipeline.py</code> only ever imports from detector.py — it doesn't care which path runs.</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout" style="border-color:var(--g);margin-top:12px">
+          <strong>The payoff:</strong> You can develop and test extractor.py without any ML infrastructure. You can swap the model without changing pipeline.py. The DSP fallback means the app works even before training completes.
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Why is <code>_model/</code> separate from the feature folders?</h3>
+        <p>The backbone + full model live in <code>_model/</code> (note the underscore prefix), separate from pitch/rhythm/breath folders.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <div class="reason"><div class="reason-icon">📦</div><div class="reason-body"><h4>Shared backbone</h4><p>NanoPitchEncoder is used by all three heads. Putting it in pitch_detection/ would be wrong — rhythm and breath also depend on it.</p></div></div>
+          <div class="reason"><div class="reason-icon">🔒</div><div class="reason-body"><h4>Underscore convention</h4><p>The leading underscore in <code>_model/</code> signals "internal module — not a public API". Feature folders (pitch_detection/, etc.) are the public API that pipeline.py uses.</p></div></div>
+          <div class="reason"><div class="reason-icon">🏋️</div><div class="reason-body"><h4>Training vs inference</h4><p><code>training/</code> and <code>_model/</code> are tightly coupled. Everything else (feature folders, data, export) doesn't need to know training details.</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h3>Why abstract <code>SingingDataset</code>?</h3>
+        <p>Seven different datasets (VocalSet, GTSinger, MIR-1K, CSD, DSing, NUS-48E, PopBuTFy) all have different directory structures, annotation formats, and naming conventions. But training code needs them to behave identically.</p>
+        <p>The abstract base class <code>SingingDataset</code> defines the contract: every subclass <em>must</em> implement <code>_get_filepaths()</code> and <code>_extract_labels()</code>. The base class owns everything else: audio loading, mel computation, <code>__getitem__</code>, <code>__len__</code>.</p>
+        <div class="callout" style="border-color:var(--y)">
+          <strong>Adding a new dataset:</strong> Subclass <code>SingingDataset</code>, implement the two abstract methods, add it to <code>_build_datasets()</code> in train.py. Nothing else changes.
+        </div>
+        <pre><span class="c"># To add a new dataset:</span>
+<span class="k">class</span> <span class="n">MyDataset</span>(SingingDataset):
+    <span class="k">def</span> _get_filepaths(self) -> list[dict]:
+        <span class="c"># return [{"audio_path":..., ...}]</span>
+        ...
+    <span class="k">def</span> _extract_labels(self, path, meta):
+        <span class="c"># return {"pitch_hz":..., ...}</span>
+        ...</pre>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Why singer-level train/val/test split?</h3>
+        <p>If you split randomly by clip, a singer who appeared in training also appears in validation. The model can "memorise" their voice characteristics — recognise the timbre, not the skill.</p>
+        <p>Singer-level split ensures validation tests on <strong>voices the model has never heard</strong>. This is the only honest way to estimate generalisation to new users.</p>
+        <div class="callout" style="border-color:var(--b)">
+          <strong>Analogy:</strong> Testing a voice coach on a student they've never met, not on a recording of a student they trained. If they can only coach familiar students, they're not a real coach.
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Why CosineAnnealingLR + warmup?</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <div class="reason"><div class="reason-icon">🌡️</div><div class="reason-body"><h4>Warmup (first 500 steps)</h4><p>At random init, gradients are huge. Starting with a tiny LR prevents the first few batches from causing catastrophic weight changes that take many epochs to recover from.</p></div></div>
+          <div class="reason"><div class="reason-icon">🌊</div><div class="reason-body"><h4>Cosine annealing</h4><p>LR follows a cosine curve from peak to near-zero. The model starts exploring broadly (high LR) then gradually commits to a solution (low LR). Better final loss than linear decay in practice.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── page navigation ──────────────────────────────────────────────────────────
+function go(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.currentTarget.classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+  if (id==='outputs') { setTimeout(()=>{redrawPitch();redrawPoster();redrawOnset();redrawBreath();},50); }
+  if (id==='techniques') setTimeout(()=>{ redrawViterbi();redrawGauss();redrawCausal(); },50);
+  if (id==='math') setTimeout(()=>{ drawWeightedMean();drawDimFlow();drawSigmoid();drawRelu(); },50);
+}
+
+function sub(page, id) {
+  document.querySelectorAll(`#${page} .subpage`).forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll(`#${page} .subtab`).forEach(b=>b.classList.remove('on'));
+  document.getElementById(`${page}-${id}`).classList.add('on');
+  event.currentTarget.classList.add('on');
+  setTimeout(()=>{
+    if(id==='pitch'){redrawPitch();redrawPoster();}
+    if(id==='onset')redrawOnset();
+    if(id==='breath')redrawBreath();
+  },30);
+}
+
+// ── file info ─────────────────────────────────────────────────────────────────
+const FILE_INFO = {
+  root: ['ml/ — The entire ML module',`<p>Everything the ML pipeline needs lives here. The backend imports only from <code>ml.pipeline</code> — one function, one return value. All internal complexity is hidden.</p><p>The module is self-contained: training, inference, export, and data loading are all here.</p>`],
+  pipeline: ['pipeline.py — The only public API',`<p>The backend calls exactly one function: <code>analyze_audio_file(audio_path)</code>. It returns a dict with pitch, rhythm, breath, and coaching results.</p><p><strong>Why one entry point?</strong> The backend doesn't need to know whether the model is loaded, which datasets were used, or what algorithms run internally. Decoupling.</p>`],
+  model_dir: ['_model/ — Shared backbone + full model',`<p>The underscore prefix signals this is an internal module. It contains the PyTorch model architecture only — no DSP, no data loading.</p><p><code>backbone.py</code> + <code>voice_coach.py</code> are the only files that need to know the full network topology.</p>`],
+  backbone: ['backbone.py — NanoPitchEncoder',`<p>The shared encoder. Takes <code>(B, T, 40)</code> log-mel → produces <code>(B, T, 384)</code> embeddings via 2× causal Conv1d + 3× GRU + skip-concat.</p><p>Adapted from NanoPitch — pre-trained weights can be transferred directly, giving the model a head start on pitch-aware features.</p><p><strong>46,730 params</strong> — deliberately tiny so the 3 heads have budget for their own layers.</p>`],
+  voicecoach: ['voice_coach.py — VoiceCoachModel',`<p>Assembles the backbone + 3 heads into a single <code>nn.Module</code>. The <code>forward()</code> method runs backbone once and branches outputs to all 3 heads in parallel.</p><p>Also implements <code>from_nanopitch_checkpoint()</code> for weight transfer, and <code>summary()</code> for printing param counts.</p>`],
+  feat_dir: ['feature_extraction/ — DSP utilities',`<p>Shared DSP code used by all dataset loaders, detectors, and the pipeline. No ML here.</p>`],
+  mel: ['mel.py — MelExtractor',`<p>Wraps <code>torchaudio.transforms.MelSpectrogram</code>. The transform is built once in <code>__init__</code> and reused — avoids rebuilding the mel filterbank on every call.</p><p>Settings: 40 mel bands, 16kHz, 400-sample window (25ms), 160-sample hop (10ms). These match NanoPitch exactly.</p>`],
+  audio_utils: ['audio_utils.py — load_audio()',`<p>One function: <code>load_audio(path, sr)</code>. Resamples to the target SR if needed. Returns a float32 numpy array. All dataset loaders and detectors go through this so resampling logic is in one place.</p>`],
+  label_utils: ['label_utils.py — Label helpers',`<p>Utility functions for converting between label formats: Hz to note names, frame indices to timestamps, etc. Keeps this logic out of the dataset loaders.</p>`],
+  pitch_dir: ['pitch_detection/ — Pitch feature module',`<p>The 3-file pattern: <code>model.py</code> (PitchHead nn.Module), <code>detector.py</code> (PitchDetector with Viterbi), no extractor needed (librosa YIN serves as the DSP path).</p>`],
+  pitch_model: ['pitch_detection/model.py — PitchHead',`<p>Two linear layers: <code>Linear(384→360)</code> for pitch bins, <code>Linear(384→1)</code> for VAD (voice activity detection).</p><p>Also implements <code>logits_to_hz()</code> — sigmoid-weighted mean over 360 bin frequencies.</p><p><strong>354,920 params</strong> — largest component because 384×360 = 138,240 params in the pitch layer alone.</p>`],
+  pitch_detector: ['pitch_detection/detector.py — PitchDetector',`<p>Runs the full pitch analysis pipeline: mel extraction → model forward → Viterbi decoding → stability score + note names.</p><p>Contains <strong>two Viterbi implementations</strong>: offline (full backtrace, more accurate) and realtime (greedy, no lookahead, matches the JavaScript/WASM deployment).</p>`],
+  rhythm_dir: ['rhythm_analysis/ — Rhythm/onset module',`<p>Full 3-file pattern: <code>extractor.py</code> (librosa onset/tempo DSP), <code>model.py</code> (RhythmHead Conv1d), <code>rhythm_detector.py</code> (combines both).</p>`],
+  rhythm_ext: ['rhythm_analysis/extractor.py — RhythmExtractor',`<p>Pure DSP: <code>onset_strength()</code>, <code>detect_onsets()</code> (times in ms), <code>estimate_tempo()</code> (BPM), <code>compute_rhythm_regularity()</code>.</p><p>The regularity score = <code>1 - std(inter-onset-intervals) / mean(IOI)</code>. High variance in note spacing = low regularity score.</p>`],
+  rhythm_model: ['rhythm_analysis/model.py — RhythmHead',`<p>Three Conv1d layers (384→128→64→1) with ReLU, sigmoid output. Per-frame onset probabilities. 10× pos-weight in loss for class imbalance.</p><p><strong>123,137 params</strong>.</p>`],
+  rhythm_det: ['rhythm_analysis/rhythm_detector.py — analyze_rhythm()',`<p>The public interface. Loads audio, runs extractor, and (when a model is available) merges neural onset predictions with DSP tempo estimate.</p>`],
+  breath_dir: ['breath_analysis/ — Breath detection module',`<p>Full 3-file pattern. Breath has the richest DSP extractor because the heuristic rules are clearly defined: quiet + noisy + low centroid = breath intake.</p>`],
+  breath_ext: ['breath_analysis/extractor.py — BreathExtractor',`<p>Computes RMS energy, zero-crossing rate, spectral centroid, MFCCs. Rule-based classifier: silence / breath / singing based on thresholds.</p><p>Key breath signature: low RMS (quiet) + high ZCR (noisy) + low spectral centroid (no harmonics above ~2kHz).</p>`],
+  breath_model: ['breath_analysis/model.py — BreathHead',`<p>Temporal average pooling → FC(384→64) → ReLU → FC(64→1) → sigmoid. <strong>16,513 params</strong> — smallest head because pooling collapses temporal info before the FC layers.</p>`],
+  breath_det: ['breath_analysis/detector.py — BreathDetector',`<p>Unified interface. Tries neural model path first; falls back to DSP heuristic. Returns <code>breath_detected</code> bool + <code>support_score</code> float.</p>`],
+  coaching_dir: ['coaching_engine/ — Score + feedback',`<p>Post-processing layer. Takes raw signal dicts from the detectors, converts to 0–1 scores, then maps scores to human-readable feedback strings.</p>`],
+  scorer: ['coaching_engine/scorer.py — score_features()',`<p>Converts raw output dicts to normalised 0–1 scores: pitch stability → pitch_score, timing variance → rhythm_score, breath support → breath_score. Overall = mean of three.</p>`],
+  feedback: ['coaching_engine/feedback.py — build_feedback()',`<p>Rule-based: if pitch_score &lt; 0.7 → add "pitch stability" to focus areas + "slow scales" exercise. Same for rhythm and breath. Returns summary string + exercises list.</p><p>This is intentionally simple — the ML model provides the measurements, a simple rule-based system converts them to advice.</p>`],
+  data_dir: ['data/ — Dataset loaders',`<p>Abstract base + 7 concrete dataset classes + combined dataset. Each dataset loader globs audio files, extracts DSP labels (pitch via YIN, onsets via librosa, breath via RMS), and wraps everything in the PyTorch Dataset interface.</p>`],
+  base_dataset: ['data/base_dataset.py — SingingDataset',`<p>Abstract base class defining the contract: subclasses implement <code>_get_filepaths()</code> (returns list of metadata dicts) and <code>_extract_labels()</code> (returns supervision dict).</p><p>The base class owns: audio loading, mel computation, <code>__getitem__</code>, <code>__len__</code>. Subclasses never touch these.</p>`],
+  datasets: ['data/*_dataset.py — Dataset loaders',`<p>7 concrete loaders: VocalSet, GTSinger, MIR-1K, CSD, DSing, NUS-48E, PopBuTFy. Each implements the 2 abstract methods.</p><p>All use an 80/10/10 singer-level split (alphabetical for determinism). Singer IDs are embedded in file paths — no annotation file needed.</p>`],
+  combined: ['data/combined_dataset.py — CombinedSingingDataset',`<p>Concatenates multiple SingingDataset instances. Tracks per-dataset offsets for correct index routing. Adds <code>"dataset_source"</code> key to every label dict for weighted sampling.</p><p><code>build_dataset()</code> is the convenience function that scans <code>data_dir</code> for known subdirectory names and instantiates whichever datasets exist.</p>`],
+  training_dir: ['training/ — Training infrastructure',`<p>Three files: <code>train.py</code> (main loop), <code>losses.py</code> (MultiTaskLoss), <code>evaluate.py</code> (val metrics). Designed to be run once; not imported by inference code.</p>`],
+  train: ['training/train.py — Main training loop',`<p>CLI entry point. Handles: dataset loading, singer split, DataLoader setup, model + optimizer + scheduler construction, the training loop, validation, checkpointing.</p><p>Key fix: singer split reads from <code>_files</code> metadata without loading audio — O(n) with no disk I/O.</p>`],
+  losses: ['training/losses.py — MultiTaskLoss',`<p>Weighted sum of 4 losses: pitch BCE (×1.0), onset BCE with 10× pos-weight (×0.5), breath BCE (×0.3), VAD focal BCE (×0.1).</p><p>Handles variable-length batches by truncating to min(T_pred, T_target) rather than crashing.</p>`],
+  evaluate: ['training/evaluate.py — evaluate_model()',`<p>Runs validation: pitch_loss (BCE on posteriorgram), pitch_RPA (raw pitch accuracy — % frames within 50 cents of label). Returns a dict of metrics per epoch.</p>`],
+  export_dir: ['export/ — ONNX → TFLite',`<p>Three files: <code>to_onnx.py</code> (torch.onnx.export), <code>to_tflite.py</code> (ONNX → TFLite + int8 quantisation), <code>benchmark.py</code> (latency measurement on device).</p><p>The streaming state (GRU hidden states + conv buffers) is exported as explicit inputs/outputs so the mobile app can do stateful frame-by-frame inference.</p>`],
+  onnx: ['export/to_onnx.py + to_tflite.py',`<p>Export chain: PyTorch checkpoint → ONNX (trace-based, handles dynamic T dimension) → TFLite flatbuffer → int8 quantisation with representative dataset calibration.</p><p>Target: &lt;5 MB model, &lt;50ms per 16ms audio frame on mid-range Android.</p>`],
+};
+
+function fileInfo(key) {
+  document.querySelectorAll('.tree-item').forEach(el=>el.classList.remove('active'));
+  if(event && event.currentTarget) event.currentTarget.classList.add('active');
+  const [title, body] = FILE_INFO[key] || ['Unknown', '<p>No info available.</p>'];
+  document.getElementById('fp-title').textContent = title;
+  document.getElementById('fp-body').innerHTML = body;
+}
+
+// ── technique switcher ────────────────────────────────────────────────────────
+function showTech(id) {
+  document.querySelectorAll('.tech-card').forEach(c=>c.style.display='none');
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  document.getElementById('tech-'+id).style.display='block';
+  event.currentTarget.classList.add('on');
+  setTimeout(()=>{
+    if(id==='viterbi')redrawViterbi();
+    if(id==='crepe')redrawGauss();
+    if(id==='causal')redrawCausal();
+  },30);
+}
+
+// ── CANVAS UTILITIES ──────────────────────────────────────────────────────────
+function fitCanvas(id) {
+  const c = document.getElementById(id);
+  if(!c) return c;
+  c.width = c.parentElement.clientWidth - 32;
+  return c;
+}
+function ctx(id) { const c=fitCanvas(id); return c ? c.getContext('2d') : null; }
+
+// ── PITCH CANVAS ──────────────────────────────────────────────────────────────
+function redrawPitch() {
+  const c = fitCanvas('pitchCanvas'); if(!c) return;
+  const g = c.getContext('2d');
+  const W=c.width, H=c.height;
+  const stab = parseInt(document.getElementById('stab').value)/100;
+  const target = parseFloat(document.getElementById('notesel').value);
+  document.getElementById('stab-score').textContent = 'Score: '+stab.toFixed(2);
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+
+  const N=80;
+  const minHz=80, maxHz=700;
+  const toY = hz => H - (hz-minHz)/(maxHz-minHz)*H*0.85 - H*0.07;
+
+  // target line
+  g.strokeStyle='#fbbf2440'; g.lineWidth=1; g.setLineDash([4,4]);
+  g.beginPath(); g.moveTo(0,toY(target)); g.lineTo(W,toY(target)); g.stroke();
+  g.setLineDash([]);
+
+  // voiced/unvoiced regions
+  const voiced=[];
+  for(let i=0;i<N;i++){
+    const t=i/N;
+    const silent = t>0.12 && t<0.16 || t>0.55 && t<0.60;
+    if(silent){ voiced.push(0); continue; }
+    const noise = (Math.random()-0.5)*target*(1-stab)*0.15;
+    const drift = Math.sin(t*Math.PI*3)*target*0.02*(1-stab);
+    voiced.push(target + noise + drift);
+  }
+
+  // unvoiced shading
+  g.fillStyle='#ffffff04';
+  for(let i=0;i<N;i++){
+    if(voiced[i]===0){
+      const x=i/N*W;
+      g.fillRect(x,0,W/N+1,H);
+    }
+  }
+
+  // pitch line
+  g.strokeStyle='#60a5fa'; g.lineWidth=2.5;
+  g.beginPath();
+  let started=false;
+  for(let i=0;i<N;i++){
+    if(voiced[i]===0){ started=false; continue; }
+    const x=i/N*W, y=toY(voiced[i]);
+    if(!started){ g.moveTo(x,y); started=true; } else g.lineTo(x,y);
+  }
+  g.stroke();
+
+  // dots
+  for(let i=0;i<N;i+=4){
+    if(voiced[i]===0) continue;
+    g.fillStyle='#60a5fa';
+    g.beginPath(); g.arc(i/N*W,toY(voiced[i]),3,0,Math.PI*2); g.fill();
+  }
+
+  // freq labels
+  g.fillStyle='#6b7280'; g.font='11px monospace';
+  [130.8,220,329.6,440,523.2,659.3].filter(f=>f>=minHz&&f<=maxHz).forEach(f=>{
+    g.fillText(f+'Hz',4,toY(f)+4);
+  });
+}
+
+// ── POSTERIORGRAM ─────────────────────────────────────────────────────────────
+function redrawPoster() {
+  const c=fitCanvas('posterCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const conf=parseInt(document.getElementById('conf').value)/100;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const N=360, peak=180;
+  const bw=W/N;
+  for(let i=0;i<N;i++){
+    const d=i-peak;
+    const p=Math.exp(-0.5*(d/(3*conf+1))**2)*conf + Math.random()*0.03;
+    const alpha=Math.min(1,p);
+    const r=Math.floor(60+120*alpha), gb=Math.floor(100+155*alpha*(1-alpha));
+    g.fillStyle=`rgba(${r},${gb+50},255,${alpha})`;
+    g.fillRect(i*bw, H*(1-p*0.9), bw-1, H*p*0.9);
+  }
+  // selected bin marker
+  g.strokeStyle='#fbbf24'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(peak*bw+bw/2,0); g.lineTo(peak*bw+bw/2,H); g.stroke();
+}
+
+// ── ONSET CANVAS ──────────────────────────────────────────────────────────────
+function redrawOnset() {
+  const c=fitCanvas('onsetCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const pat=document.getElementById('onsetpat').value;
+  const thr=parseInt(document.getElementById('onsetThr').value)/100;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+
+  const N=120;
+  const onsets=[];
+  if(pat==='regular') for(let i=0;i<N;i+=15) onsets.push(i);
+  else if(pat==='irregular') [5,18,27,45,62,80,95,110].forEach(v=>onsets.push(v));
+  else for(let i=0;i<N;i+=6) onsets.push(i);
+
+  // energy envelope
+  const energy=new Array(N).fill(0);
+  for(let i=0;i<N;i++){
+    for(const o of onsets){
+      const d=i-o;
+      if(d>=0 && d<8) energy[i]=Math.max(energy[i], Math.exp(-d*0.5)*0.85+Math.random()*0.05);
+    }
+    energy[i]+=Math.random()*0.04;
+  }
+
+  g.strokeStyle='#ffffff18'; g.lineWidth=1.5;
+  g.beginPath();
+  for(let i=0;i<N;i++) {
+    const x=i/N*W, y=H-energy[i]*(H*0.55)-H*0.05;
+    i===0 ? g.moveTo(x,y) : g.lineTo(x,y);
+  }
+  g.stroke();
+
+  // onset probs
+  const probs=new Array(N).fill(0);
+  for(const o of onsets) probs[o]=0.85+Math.random()*0.12;
+  for(let i=0;i<N;i++) if(probs[i]===0) probs[i]=Math.random()*0.2;
+
+  g.strokeStyle='#34d399'; g.lineWidth=2;
+  g.beginPath();
+  for(let i=0;i<N;i++){
+    const x=i/N*W, y=H-probs[i]*(H*0.85)-5;
+    i===0 ? g.moveTo(x,y) : g.lineTo(x,y);
+  }
+  g.stroke();
+
+  // threshold line
+  g.strokeStyle=`rgba(251,146,60,0.6)`; g.lineWidth=1; g.setLineDash([4,3]);
+  const ty=H-thr*H*0.85-5;
+  g.beginPath(); g.moveTo(0,ty); g.lineTo(W,ty); g.stroke();
+  g.setLineDash([]);
+
+  // detected spikes
+  let beats=0;
+  for(let i=0;i<N;i++){
+    if(probs[i]>=thr){
+      beats++;
+      g.strokeStyle='#34d39988'; g.lineWidth=1;
+      g.beginPath(); g.moveTo(i/N*W,0); g.lineTo(i/N*W,H); g.stroke();
+    }
+  }
+  document.getElementById('onset-beats').textContent = `Detected: ${beats} onsets`;
+}
+
+// ── BREATH CANVAS ─────────────────────────────────────────────────────────────
+function redrawBreath() {
+  const c=fitCanvas('breathCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const type=document.getElementById('breathtype').value;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+
+  const N=100;
+  let rms,zcr,cen;
+  if(type==='breath') { rms=0.030; zcr=0.18; cen=1100; }
+  else if(type==='singing') { rms=0.22; zcr=0.07; cen=3200; }
+  else { rms=0.003; zcr=0.05; cen=800; }
+
+  const curves = {
+    rms:  Array.from({length:N},(_,i)=>{ const t=i/N; if(type==='breath') return t<0.3?rms+Math.random()*.005:rms*1.5+Math.random()*.02; if(type==='silence') return t<0.25?0.002:0.2; return rms+Math.random()*.01; }),
+    zcr:  Array.from({length:N},(_,i)=>{ const t=i/N; if(type==='breath') return t<0.3?zcr+Math.random()*.04:0.06+Math.random()*.02; return zcr+Math.random()*.015; }),
+    cen:  Array.from({length:N},(_,i)=>{ return Math.max(0,cen+(Math.random()-.5)*200); }),
+  };
+
+  const colors=['#60a5fa','#34d399','#fb923c'];
+  const keys=['rms','zcr','cen'];
+  const maxes=[0.5,0.5,6000];
+  keys.forEach((k,ki)=>{
+    g.strokeStyle=colors[ki]; g.lineWidth=1.8;
+    g.beginPath();
+    curves[k].forEach((v,i)=>{
+      const x=i/N*W, y=H-v/maxes[ki]*H*0.85-8;
+      i===0?g.moveTo(x,y):g.lineTo(x,y);
+    });
+    g.stroke();
+  });
+
+  // verdict
+  const verdict=document.getElementById('breath-verdict');
+  if(type==='breath'){
+    verdict.style.background='#fb923c20'; verdict.style.color='#fb923c';
+    verdict.textContent='⚠ Breath detected — RMS low ('+rms.toFixed(3)+'), ZCR high ('+zcr.toFixed(2)+'), centroid < 2kHz → coaching: improve breath support';
+  } else if(type==='singing'){
+    verdict.style.background='#34d39920'; verdict.style.color='#34d399';
+    verdict.textContent='✓ Singing directly — RMS high ('+rms.toFixed(2)+'), confident phonation start';
+  } else {
+    verdict.style.background='#60a5fa20'; verdict.style.color='#60a5fa';
+    verdict.textContent='◌ Silence then singing — RMS near-zero initially, no breath signature';
+  }
+  // update meters
+  const pct=(v,mx)=>Math.min(100,v/mx*100)+'%';
+  document.getElementById('m-rms').style.width=pct(rms,.5);
+  document.getElementById('m-zcr').style.width=pct(zcr,.5);
+  document.getElementById('m-cen').style.width=pct(cen,6000);
+  document.getElementById('v-rms').textContent=rms.toFixed(3);
+  document.getElementById('v-zcr').textContent=zcr.toFixed(2);
+  document.getElementById('v-cen').textContent=Math.round(cen)+' Hz';
+  const cls=type==='breath'?'breath':type==='silence'?'silence':'singing';
+  document.getElementById('v-cls').textContent=cls;
+  const clsColors={breath:'var(--o)',silence:'var(--b)',singing:'var(--g)'};
+  document.getElementById('m-cls').style.background=clsColors[cls];
+  document.getElementById('m-cls').style.width=type==='breath'?'70%':type==='singing'?'90%':'20%';
+}
+
+// ── VITERBI CANVAS ────────────────────────────────────────────────────────────
+function redrawViterbi() {
+  const c=fitCanvas('vitCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const N=80;
+  const trueHz=392;
+  const toY=hz=>H-(hz-100)/(800-100)*(H-30)-15;
+
+  // true pitch
+  g.strokeStyle='#fbbf2450'; g.lineWidth=1.5; g.setLineDash([4,3]);
+  g.beginPath(); g.moveTo(0,toY(trueHz)); g.lineTo(W,toY(trueHz)); g.stroke();
+  g.setLineDash([]);
+
+  // raw argmax (noisy)
+  const raw=[];
+  for(let i=0;i<N;i++){
+    const jump=Math.random()<0.12;
+    raw.push(jump?trueHz*(0.5+Math.random()):trueHz+(Math.random()-.5)*40);
+  }
+  g.strokeStyle='#ffffff25'; g.lineWidth=1.5;
+  g.beginPath();
+  raw.forEach((v,i)=>{ const x=i/N*W,y=toY(v); i===0?g.moveTo(x,y):g.lineTo(x,y); });
+  g.stroke();
+
+  // viterbi (smooth – constrain jumps)
+  const vit=[raw[0]];
+  for(let i=1;i<N;i++){
+    const prev=vit[i-1];
+    const diff=raw[i]-prev;
+    const clamped=Math.abs(diff)>80?prev+(diff>0?30:-30):raw[i];
+    vit.push(clamped);
+  }
+  g.strokeStyle='#a78bfa'; g.lineWidth=2.5;
+  g.beginPath();
+  vit.forEach((v,i)=>{ const x=i/N*W,y=toY(v); i===0?g.moveTo(x,y):g.lineTo(x,y); });
+  g.stroke();
+
+  g.fillStyle='#6b7280'; g.font='11px monospace';
+  g.fillText('392 Hz (G4)',4,toY(trueHz)-6);
+}
+
+// ── GAUSSIAN TARGET CANVAS ────────────────────────────────────────────────────
+function redrawGauss() {
+  const c=fitCanvas('gaussCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const N=360;
+  const peak=parseInt(document.getElementById('gaussBin')?.value||180);
+  const sig=parseInt(document.getElementById('gaussSig')?.value||1);
+  const bw=W/N;
+
+  for(let i=0;i<N;i++){
+    const d=i-peak;
+    const hard=i===peak?0.9:0;
+    const soft=Math.exp(-0.5*(d/sig)**2)*0.85;
+
+    // hard (dim)
+    g.fillStyle=`rgba(80,80,100,${hard})`;
+    g.fillRect(i*bw, H*(1-hard*0.9)-5, bw-1, H*hard*0.9);
+
+    // soft
+    g.fillStyle=`rgba(52,211,153,${soft})`;
+    g.fillRect(i*bw, H*(1-soft*0.9)-5, bw-1, H*soft*0.9);
+  }
+  g.fillStyle='#fbbf24'; g.font='11px monospace';
+  g.fillText('bin '+peak+' = '+Math.round(31.7*Math.pow(2,peak*20/1200))+' Hz',6,14);
+}
+
+// ── CAUSAL CANVAS ─────────────────────────────────────────────────────────────
+function redrawCausal() {
+  const c=fitCanvas('causalCanvas'); if(!c) return;
+  const g=c.getContext('2d');
+  const W=c.width,H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+
+  const rows=4, cols=9, cw=W/cols, ch=H/rows, r=16;
+  const labels=['t−4','t−3','t−2','t−1','t','t+1','t+2','t+3','t+4'];
+
+  const drawRow=(row,title,start,end,cur)=>{
+    g.fillStyle='#3a3d50'; g.font='11px sans-serif';
+    g.fillText(title,4,row*ch+ch/2+4);
+    for(let i=0;i<cols;i++){
+      const x=(i+0.5)*cw, y=row*ch+ch/2;
+      let fill='#1a1d2b', stroke='#3a3d50';
+      if(i===cur){ fill='#60a5fa44'; stroke='#60a5fa'; }
+      else if(i>=start && i<=end){ fill='#fb923c22'; stroke='#fb923c'; }
+      else if(i>end && i<cols){ fill='#f472b611'; stroke='#f472b633'; }
+      g.fillStyle=fill; g.strokeStyle=stroke; g.lineWidth=1.5;
+      g.beginPath(); g.roundRect(x-r,y-r,r*2,r*2,6); g.fill(); g.stroke();
+      g.fillStyle='#9ca3af'; g.font='10px monospace';
+      g.textAlign='center'; g.fillText(labels[i],x,y+4); g.textAlign='left';
+    }
+  };
+
+  const mid=4;
+  drawRow(0,' Input',0,8,mid);
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText('Layer 1 — Non-causal (sees t−1, t, t+1)',4,1*ch-4);
+  drawRow(1,' Non-causal',mid-1,mid+1,mid);
+  g.fillText('Layer 1 — Causal (sees t−2, t−1, t only)',4,2*ch-4);
+  drawRow(2,' Causal',mid-2,mid,mid);
+  drawRow(3,' Output',mid-2,mid,mid);
+
+  g.fillStyle='#fb923c'; g.font='11px sans-serif';
+  g.fillText('= uses (past)',W-120,H-8);
+  g.fillStyle='#f472b6';
+  g.fillText('= future (blocked)',W-120,H-22);
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  setTimeout(()=>{ redrawViterbi(); redrawGauss(); redrawCausal(); },100);
+});
+window.addEventListener('resize',()=>{
+  redrawPitch(); redrawPoster(); redrawOnset(); redrawBreath();
+  redrawViterbi(); redrawGauss(); redrawCausal();
+});
+window.addEventListener('resize',()=>{ mathResize(); });
+
+// ── MATH PAGE ────────────────────────────────────────────────────────────────
+
+/* ---- shared math utilities ---- */
+function mathResize(){
+  if(!document.getElementById('math').classList.contains('on')) return;
+  drawSigmoid(); drawRelu(); drawConvAnim(); drawWeightedMean(); drawPooling();
+  drawDimFlow();
+}
+
+/* sigmoid curve */
+function drawSigmoid(){
+  const c=fitCanvas('cvSigmoid'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const toX=z=>(z+6)/12*W, toY=p=>H-p*(H-20)-10;
+  // axes
+  g.strokeStyle='#3a3d50'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,toY(0.5)); g.lineTo(W,toY(0.5)); g.stroke();
+  g.beginPath(); g.moveTo(toX(0),0); g.lineTo(toX(0),H); g.stroke();
+  // curve
+  g.strokeStyle='#a78bfa'; g.lineWidth=2.5;
+  g.beginPath();
+  for(let px=0;px<W;px++){
+    const z=(px/W)*12-6;
+    const p=1/(1+Math.exp(-z));
+    px===0?g.moveTo(px,toY(p)):g.lineTo(px,toY(p));
+  }
+  g.stroke();
+  // draggable point
+  const zv=parseFloat(document.getElementById('sigZ')?.value||0);
+  const pv=1/(1+Math.exp(-zv));
+  const px=toX(zv), py=toY(pv);
+  // dashed lines
+  g.setLineDash([3,3]); g.strokeStyle='#fbbf2466'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(px,py); g.lineTo(px,H); g.stroke();
+  g.beginPath(); g.moveTo(px,py); g.lineTo(0,py); g.stroke();
+  g.setLineDash([]);
+  // point
+  g.fillStyle='#fbbf24';
+  g.beginPath(); g.arc(px,py,6,0,Math.PI*2); g.fill();
+  // labels
+  g.fillStyle='#e2e4f0'; g.font='12px monospace';
+  g.fillText(`z = ${zv.toFixed(2)}`,8,16);
+  g.fillText(`σ(z) = ${pv.toFixed(4)}`,8,32);
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  [-4,-2,0,2,4].forEach(z=>{ g.fillText(z,toX(z)-4,H-2); });
+  [0,0.25,0.5,0.75,1].forEach(p=>{ g.fillText(p.toFixed(2),2,toY(p)+4); });
+}
+
+/* relu curve */
+function drawRelu(){
+  const c=fitCanvas('cvRelu'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const toX=z=>(z+6)/12*W, toY=v=>H-(v+1)/7*(H-20)-10;
+  g.strokeStyle='#3a3d50'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,toY(0)); g.lineTo(W,toY(0)); g.stroke();
+  g.beginPath(); g.moveTo(toX(0),0); g.lineTo(toX(0),H); g.stroke();
+  // ReLU
+  g.strokeStyle='#34d399'; g.lineWidth=2.5;
+  g.beginPath(); g.moveTo(0,toY(0)); g.lineTo(toX(0),toY(0)); g.lineTo(W,toY(6)); g.stroke();
+  const zv=parseFloat(document.getElementById('reluZ')?.value||1);
+  const rv=Math.max(0,zv);
+  const px=toX(zv), py=toY(rv);
+  g.setLineDash([3,3]); g.strokeStyle='#fbbf2466'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(px,py); g.lineTo(px,H); g.stroke();
+  g.beginPath(); g.moveTo(px,py); g.lineTo(0,py); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle='#fbbf24';
+  g.beginPath(); g.arc(px,py,6,0,Math.PI*2); g.fill();
+  g.fillStyle='#e2e4f0'; g.font='12px monospace';
+  g.fillText(`z = ${zv.toFixed(2)}`,8,16);
+  g.fillText(`ReLU(z) = max(0,z) = ${rv.toFixed(2)}`,8,32);
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText('negative → 0',toX(-5)+4,toY(0)-6);
+  g.fillText('positive → z',toX(2)+4,toY(3)-6);
+}
+
+/* conv1d animation */
+let convFrame=0, convTimer=null;
+function drawConvAnim(){
+  const c=fitCanvas('cvConv'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const N=16, k=3;
+  const signal=[0.2,0.5,0.8,0.3,0.1,0.9,0.7,0.4,0.6,0.2,0.8,0.5,0.3,0.7,0.4,0.6];
+  const kernel=[0.5,1.0,0.5]; // simple blur kernel (normalized)
+  const t=convFrame%N;
+  const cw=Math.floor((W-20)/N), pad=10;
+  // draw signal
+  signal.forEach((v,i)=>{
+    const x=pad+i*cw, bh=v*(H*0.35), by=H*0.55;
+    const isKernel=i>=t && i<t+k;
+    g.fillStyle=isKernel?'#fb923c44':'#1a1d2b';
+    g.fillRect(x,by-bh,cw-3,bh);
+    g.strokeStyle=isKernel?'#fb923c':'#3a3d50'; g.lineWidth=1.5;
+    g.strokeRect(x,by-bh,cw-3,bh);
+    g.fillStyle='#6b7280'; g.font='9px monospace'; g.textAlign='center';
+    g.fillText(v.toFixed(1),x+cw/2-1,by+12);
+    g.textAlign='left';
+  });
+  // draw kernel below
+  const ky=H*0.82;
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText('Kernel (k=3):',pad,ky-12);
+  kernel.forEach((v,i)=>{
+    const kx=pad+t*cw+i*cw;
+    g.fillStyle='#fb923c33'; g.fillRect(kx,ky-v*25,cw-3,v*25);
+    g.strokeStyle='#fb923c'; g.lineWidth=1.5; g.strokeRect(kx,ky-v*25,cw-3,v*25);
+    g.fillStyle='#fb923c'; g.font='9px monospace'; g.textAlign='center';
+    g.fillText(v.toFixed(1),kx+cw/2-1,ky+12); g.textAlign='left';
+  });
+  // output value
+  let sum=0;
+  for(let i=0;i<k;i++) if(t+i<N) sum+=signal[t+i]*kernel[i];
+  const ox=pad+t*cw+cw, oy=H*0.25;
+  g.fillStyle='#34d399'; g.font='11px monospace';
+  g.fillText(`y[${t}] = ${signal[t]?.toFixed(1)||'?'}×${kernel[0]}+${signal[t+1]?.toFixed(1)||'?'}×${kernel[1]}+${signal[t+2]?.toFixed(1)||'?'}×${kernel[2]} = ${sum.toFixed(3)}`,pad,oy);
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText('Input signal (16 time steps)',pad,H*0.55+24);
+}
+function startConv(){
+  if(convTimer) return;
+  convTimer=setInterval(()=>{ convFrame++; drawConvAnim(); },400);
+}
+function stopConv(){ clearInterval(convTimer); convTimer=null; }
+
+/* weighted mean demo */
+function drawWeightedMean(){
+  const c=fitCanvas('cvWM'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const targetHz=parseFloat(document.getElementById('wmHz')?.value||392);
+  const N=360, FMIN=31.7;
+  const hzOf=b=>FMIN*Math.pow(2,b*20/1200);
+  const targetBin=Math.round(Math.log2(targetHz/FMIN)*1200/20);
+  const sigma=parseFloat(document.getElementById('wmSig')?.value||2);
+  // build probs
+  const probs=[];
+  for(let b=0;b<N;b++){
+    const d=b-targetBin;
+    probs.push(Math.exp(-0.5*(d/sigma)**2));
+  }
+  // draw bars (every 3rd bin for density)
+  const step=2;
+  const bw=W/(N/step);
+  for(let b=0;b<N;b+=step){
+    const x=(b/step)*bw;
+    const bh=probs[b]*(H*0.6);
+    const alpha=probs[b];
+    g.fillStyle=`rgba(167,139,250,${alpha})`;
+    g.fillRect(x,H*0.72-bh,bw-1,bh);
+  }
+  // target line
+  const tx=(targetBin/step)*bw;
+  g.strokeStyle='#fbbf24'; g.lineWidth=2; g.setLineDash([3,3]);
+  g.beginPath(); g.moveTo(tx,0); g.lineTo(tx,H*0.72); g.stroke();
+  g.setLineDash([]);
+  // weighted mean
+  let num=0,den=0;
+  for(let b=0;b<N;b++){ num+=probs[b]*hzOf(b); den+=probs[b]; }
+  const recovered=num/(den+1e-8);
+  // result
+  g.fillStyle='#e2e4f0'; g.font='12px monospace';
+  g.fillText(`True pitch:      ${targetHz.toFixed(1)} Hz`,8,16);
+  g.fillText(`Target bin:      ${targetBin} of 360`,8,30);
+  g.fillText(`σ (spread):      ${sigma} bin(s) = ${(sigma*20).toFixed(0)} cents`,8,44);
+  g.fillText(`Recovered Hz:    ${recovered.toFixed(2)} Hz`,8,58);
+  const err=Math.abs(recovered-targetHz);
+  g.fillStyle=err<5?'#34d399':'#fb923c';
+  g.fillText(`Error: ${err.toFixed(2)} Hz (${(err/targetHz*1200).toFixed(1)} cents)`,8,72);
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  [100,200,400,800,1600].forEach(hz=>{
+    if(hz<FMIN||hz>FMIN*Math.pow(2,N*20/1200)) return;
+    const bin=Math.log2(hz/FMIN)*1200/20;
+    const x=(bin/step)*bw;
+    g.fillText(hz+'Hz',x-12,H*0.72+14);
+  });
+}
+
+/* temporal pooling demo */
+function drawPooling(){
+  const c=fitCanvas('cvPool'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const T=parseInt(document.getElementById('poolT')?.value||8);
+  const featDim=6; // show 6 of 384 features for clarity
+  // generate random frame features (deterministic seed)
+  const frames=[];
+  for(let t=0;t<T;t++){
+    const row=[];
+    for(let f=0;f<featDim;f++) row.push(0.3+0.6*Math.abs(Math.sin((t*7+f*3)*0.7)));
+    frames.push(row);
+  }
+  const pooled=frames[0].map((_,f)=>frames.reduce((s,r)=>s+r[f],0)/T);
+  const cw=Math.floor((W*0.65-20)/T), fw=Math.floor((W*0.28)/featDim);
+  const ch=Math.floor((H-60)/featDim);
+  // draw frames
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText(`T = ${T} frames (each frame = 384-dim vector, showing 6)`,8,14);
+  frames.forEach((row,t)=>{
+    row.forEach((v,f)=>{
+      const x=10+t*cw, y=28+f*ch;
+      g.fillStyle=`rgba(96,165,250,${v})`;
+      g.fillRect(x,y,cw-3,ch-2);
+    });
+    g.fillStyle='#3a3d50'; g.font='9px monospace'; g.textAlign='center';
+    g.fillText(`t${t}`,10+t*cw+cw/2,28+featDim*ch+12); g.textAlign='left';
+  });
+  // arrow
+  const ax=10+T*cw+8, ay=H/2;
+  g.strokeStyle='#fbbf24'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(ax,ay); g.lineTo(ax+28,ay); g.stroke();
+  g.fillStyle='#fbbf24'; g.font='9px sans-serif';
+  g.fillText('avg',ax+2,ay-6);
+  g.fillText('÷'+T,ax+2,ay+14);
+  // pooled vector
+  const px=ax+34;
+  g.fillStyle='#6b7280'; g.font='10px sans-serif';
+  g.fillText('pooled',px,14);
+  pooled.forEach((v,f)=>{
+    const y=28+f*ch;
+    g.fillStyle=`rgba(167,139,250,${v})`;
+    g.fillRect(px,y,fw-3,ch-2);
+    g.fillStyle='#a78bfa'; g.font='9px monospace';
+    g.fillText(v.toFixed(2),px+fw+2,y+ch-2);
+  });
+  // formula note
+  g.fillStyle='#6b7280'; g.font='11px monospace';
+  g.fillText(`pooled[f] = (1/${T}) × Σ x_t[f]  →  same 384-dim vector regardless of T`,8,H-6);
+}
+
+/* dimension flow */
+function drawDimFlow(){
+  const c=fitCanvas('cvDimFlow'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const head=document.getElementById('dimHead')?.value||'pitch';
+  const steps={
+    pitch:[
+      {label:'Input',dim:'(B, T, 384)',color:'#60a5fa'},
+      {label:'W_pitch · x + b_pitch',dim:'Linear(384→360)',color:'#a78bfa'},
+      {label:'pitch_logits',dim:'(B, T, 360)',color:'#a78bfa'},
+      {label:'σ(pitch_logits)',dim:'sigmoid element-wise',color:'#34d399'},
+      {label:'probs',dim:'(B, T, 360)  ∈ [0,1]',color:'#34d399'},
+      {label:'Σ(probs·Hz) / Σ(probs)',dim:'weighted mean over 360 bins',color:'#fbbf24'},
+      {label:'pitch_hz',dim:'(B, T)  Hz per frame',color:'#fbbf24'},
+    ],
+    rhythm:[
+      {label:'Input (permuted)',dim:'(B, 384, T)',color:'#60a5fa'},
+      {label:'Conv1d(384→128,k=3)+ReLU',dim:'(B, 128, T)',color:'#fb923c'},
+      {label:'Conv1d(128→64,k=3)+ReLU',dim:'(B, 64, T)',color:'#fb923c'},
+      {label:'Conv1d(64→1,k=1)',dim:'(B, 1, T)',color:'#f472b6'},
+      {label:'σ(·)',dim:'sigmoid',color:'#34d399'},
+      {label:'onset_probs',dim:'(B, 1, T)  ∈ [0,1]',color:'#34d399'},
+    ],
+    breath:[
+      {label:'Input (permuted)',dim:'(B, 384, T)',color:'#60a5fa'},
+      {label:'mean(dim=−1)',dim:'avg pool over T',color:'#a78bfa'},
+      {label:'pooled',dim:'(B, 384)',color:'#a78bfa'},
+      {label:'ReLU(W₁·pooled + b₁)',dim:'Linear(384→64)',color:'#fb923c'},
+      {label:'h',dim:'(B, 64)',color:'#fb923c'},
+      {label:'W₂·h + b₂',dim:'Linear(64→1)',color:'#f472b6'},
+      {label:'σ(·)',dim:'sigmoid',color:'#34d399'},
+      {label:'breath_prob',dim:'(B, 1)  ∈ [0,1]',color:'#34d399'},
+    ],
+  };
+  const s=steps[head];
+  const bh=Math.floor((H-20)/s.length)-4, bw=W-20;
+  s.forEach((step,i)=>{
+    const y=10+i*(bh+4);
+    g.fillStyle=step.color+'22';
+    g.strokeStyle=step.color+'88'; g.lineWidth=1.5;
+    g.beginPath(); g.roundRect(10,y,bw,bh,6); g.fill(); g.stroke();
+    g.fillStyle=step.color; g.font=`bold ${Math.min(13,bh-6)}px monospace`;
+    g.fillText(step.label,18,y+bh*0.45);
+    g.fillStyle='#6b7280'; g.font=`${Math.min(11,bh-8)}px sans-serif`;
+    g.fillText(step.dim,18,y+bh*0.78);
+    if(i<s.length-1){
+      const ax=W/2, ay=y+bh+1;
+      g.strokeStyle='#3a3d50'; g.lineWidth=1;
+      g.beginPath(); g.moveTo(ax,ay); g.lineTo(ax,ay+3); g.stroke();
+    }
+  });
+}
+</script>
+
+<!-- ═══════════════════ MATH PAGE ═══════════════════ -->
+<div id="math" class="page">
+  <h2>🧮 Math &amp; Formulas — How Each Head Transforms Features</h2>
+
+  <div class="subtabs" id="math-subtabs">
+    <button class="subtab on" onclick="mathSub('pitch')">🎵 PitchHead</button>
+    <button class="subtab" onclick="mathSub('rhythm')">🥁 RhythmHead</button>
+    <button class="subtab" onclick="mathSub('breath')">💨 BreathHead</button>
+    <button class="subtab" onclick="mathSub('activations')">⚡ Activations</button>
+  </div>
+
+  <!-- PITCH MATH -->
+  <div id="math-pitch" class="subpage on">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3 style="color:var(--b)">Step 1 — Linear projection to 360 bins</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--b)">pitch_logits<span style="color:var(--muted)"> = </span>W<sub style="font-size:10px">pitch</sub> <span style="color:var(--muted)">·</span> x <span style="color:var(--muted)">+</span> b<sub style="font-size:10px">pitch</sub></div>
+            <div style="color:var(--muted);font-size:11px">
+              where &nbsp; x ∈ ℝ<sup>384</sup> &nbsp;(one frame of backbone features)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; W<sub>pitch</sub> ∈ ℝ<sup>360 × 384</sup> &nbsp;(learnable weight matrix)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b<sub>pitch</sub> ∈ ℝ<sup>360</sup> &nbsp;(learnable bias)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; output ∈ ℝ<sup>360</sup> &nbsp;(raw logit per pitch bin)
+            </div>
+          </div>
+          <p>Each of the 360 output values is a <strong>dot product</strong> of the 384-dim feature vector with one row of W — asking "how much does this feature pattern look like it belongs to bin b?"</p>
+          <div class="callout" style="border-color:var(--b)"><strong>Parameter count:</strong> 384 × 360 = 138,240 weights + 360 biases = 138,600. This is why PitchHead dominates the param budget.</div>
+
+          <h3 style="color:var(--b);margin-top:16px">Step 2 — Sigmoid to probabilities</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--g)">probs<sub style="font-size:10px">b</sub> <span style="color:var(--muted)">=</span> σ(pitch_logits<sub style="font-size:10px">b</sub>) <span style="color:var(--muted)">=</span> 1 / (1 + e<sup>−logits<sub style="font-size:9px">b</sub></sup>)</div>
+            <div style="color:var(--muted);font-size:11px">applied element-wise across all 360 bins → probs ∈ [0,1]<sup>360</sup></div>
+          </div>
+
+          <h3 style="color:var(--b);margin-top:16px">Step 3 — Bin frequencies</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--o)">Hz<sub style="font-size:10px">b</sub> <span style="color:var(--muted)">=</span> 31.7 × 2<sup>(b × 20) / 1200</sup></div>
+            <div style="color:var(--muted);font-size:11px">
+              31.7 Hz = B0 (lowest bin) &nbsp;·&nbsp; 20 cents per bin &nbsp;·&nbsp; 1200 cents per octave<br>
+              b = 0 → 31.7 Hz, b = 60 → 126 Hz, b = 180 → 392 Hz (G4), b = 360 → ~8 kHz
+            </div>
+          </div>
+
+          <h3 style="color:var(--b);margin-top:16px">Step 4 — Weighted mean → pitch_hz</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--y)">pitch_hz <span style="color:var(--muted)">=</span> <span style="font-size:18px">(</span>Σ<sub style="font-size:9px">b=0</sub><sup style="font-size:9px">359</sup> probs<sub style="font-size:9px">b</sub> × Hz<sub style="font-size:9px">b</sub><span style="font-size:18px">)</span> / <span style="font-size:18px">(</span>Σ<sub style="font-size:9px">b=0</sub><sup style="font-size:9px">359</sup> probs<sub style="font-size:9px">b</sub> <span style="color:var(--muted)">+ ε</span><span style="font-size:18px">)</span></div>
+            <div style="color:var(--muted);font-size:11px">ε = 1e-8 prevents division by zero &nbsp;·&nbsp; output: one Hz value per frame</div>
+          </div>
+          <p>The weighted mean naturally <strong>interpolates between bins</strong>. If probs peak between bin 180 and 181, the output Hz falls between their frequencies — no rounding to the nearest bin needed.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Interactive — Weighted Mean Hz Recovery</div>
+          <canvas id="cvWM" height="200"></canvas>
+          <div class="ctrl">
+            <label>True pitch</label>
+            <select id="wmHz" onchange="drawWeightedMean()">
+              <option value="130.8">C3 (130 Hz)</option>
+              <option value="196.0">G3 (196 Hz)</option>
+              <option value="261.6">C4 (261 Hz)</option>
+              <option value="392.0" selected>G4 (392 Hz)</option>
+              <option value="440.0">A4 (440 Hz)</option>
+              <option value="523.2">C5 (523 Hz)</option>
+              <option value="880.0">A5 (880 Hz)</option>
+            </select>
+            <label>σ (spread, bins)</label>
+            <input type="range" id="wmSig" min="1" max="8" value="2" oninput="drawWeightedMean()">
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">Purple bars = σ(logits) probabilities across 360 bins. Yellow line = target bin. Watch how increasing σ blurs the distribution but the weighted mean (recovered Hz) stays accurate.</p>
+        </div>
+
+        <div class="vis-wrap" style="margin-top:14px">
+          <div class="vis-title">Dimension Flow — PitchHead</div>
+          <select id="dimHead" onchange="drawDimFlow()" style="background:var(--card2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;margin-bottom:8px">
+            <option value="pitch">PitchHead</option>
+            <option value="rhythm">RhythmHead</option>
+            <option value="breath">BreathHead</option>
+          </select>
+          <canvas id="cvDimFlow" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RHYTHM MATH -->
+  <div id="math-rhythm" class="subpage">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3 style="color:var(--g)">Conv1d — The Core Operation</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--g)">y<sub style="font-size:10px">c_out, t</sub> <span style="color:var(--muted)">=</span> Σ<sub style="font-size:9px">c_in</sub> Σ<sub style="font-size:9px">k=0</sub><sup style="font-size:9px">K−1</sup> W<sub style="font-size:9px">c_out, c_in, k</sub> · x<sub style="font-size:9px">c_in, t+k−⌊K/2⌋</sub> <span style="color:var(--muted)">+ b</span><sub style="font-size:9px">c_out</sub></div>
+            <div style="color:var(--muted);font-size:11px">
+              K = kernel size (3) &nbsp;·&nbsp; c_in = input channels &nbsp;·&nbsp; c_out = output channels<br>
+              The kernel W slides over the time axis t, summing over all input channels
+            </div>
+          </div>
+          <p>Think of the kernel as a <strong>sliding template</strong>: for each output time step, it takes a weighted sum of K consecutive frames across all input channels.</p>
+
+          <h3 style="color:var(--g);margin-top:16px">Full RhythmHead forward pass</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2">
+            <div><span style="color:var(--muted)">Input: </span><span style="color:var(--b)">x</span><span style="color:var(--muted)"> ∈ ℝ<sup>384 × T</sup></span></div>
+            <div style="margin-top:6px"><span style="color:var(--g)">z₁</span> <span style="color:var(--muted)">=</span> ReLU(Conv1d<sub style="font-size:9px">384→128, k=3</sub>(<span style="color:var(--b)">x</span>)) <span style="color:var(--muted)"> → ℝ<sup>128 × T</sup></span></div>
+            <div><span style="color:var(--g)">z₂</span> <span style="color:var(--muted)">=</span> ReLU(Conv1d<sub style="font-size:9px">128→64, k=3</sub>(<span style="color:var(--g)">z₁</span>)) <span style="color:var(--muted)"> → ℝ<sup>64 × T</sup></span></div>
+            <div><span style="color:var(--g)">z₃</span> <span style="color:var(--muted)">=</span> Conv1d<sub style="font-size:9px">64→1, k=1</sub>(<span style="color:var(--g)">z₂</span>) <span style="color:var(--muted)"> → ℝ<sup>1 × T</sup></span></div>
+            <div style="margin-top:6px"><span style="color:var(--y)">onset_probs</span> <span style="color:var(--muted)">=</span> σ(<span style="color:var(--g)">z₃</span>) <span style="color:var(--muted)"> → ℝ<sup>1 × T</sup>, each value ∈ [0,1]</span></div>
+          </div>
+          <p>The k=1 final layer is a <strong>per-frame linear classifier</strong> — each time step independently decides "onset or not?" based on its 64-dim local feature.</p>
+          <div class="callout" style="border-color:var(--g)"><strong>Why k=3 not k=1 for the first two?</strong> k=3 lets each output frame see ±1 neighboring frames of context — enough to detect the onset envelope shape without needing long-range memory (the backbone's GRUs handle that).</div>
+
+          <h3 style="color:var(--g);margin-top:16px">Channel compression intuition</h3>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:13px">
+            <div style="background:#60a5fa22;border:1px solid var(--b);padding:8px 12px;border-radius:6px;text-align:center"><div style="color:var(--b);font-weight:700">384</div><div style="color:var(--muted);font-size:11px">backbone</div></div>
+            <div style="color:var(--muted)">→ Conv+ReLU →</div>
+            <div style="background:#34d39922;border:1px solid var(--g);padding:8px 12px;border-radius:6px;text-align:center"><div style="color:var(--g);font-weight:700">128</div><div style="color:var(--muted);font-size:11px">coarse</div></div>
+            <div style="color:var(--muted)">→ Conv+ReLU →</div>
+            <div style="background:#34d39922;border:1px solid var(--g);padding:8px 12px;border-radius:6px;text-align:center"><div style="color:var(--g);font-weight:700">64</div><div style="color:var(--muted);font-size:11px">fine</div></div>
+            <div style="color:var(--muted)">→ Conv →</div>
+            <div style="background:#fbbf2422;border:1px solid var(--y);padding:8px 12px;border-radius:6px;text-align:center"><div style="color:var(--y);font-weight:700">1</div><div style="color:var(--muted);font-size:11px">onset prob</div></div>
+          </div>
+          <p>Each conv compresses channels while maintaining T. By the final layer only 1 channel remains — the onset score — but every value still corresponds to one time step.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Conv1d Animation — Kernel Sliding Over Signal</div>
+          <canvas id="cvConv" height="180"></canvas>
+          <div class="ctrl">
+            <button onclick="startConv()">▶ Animate</button>
+            <button onclick="stopConv()">⏸ Pause</button>
+            <button onclick="convFrame=0;drawConvAnim()">↺ Reset</button>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">Orange boxes = current kernel position. For each output y[t], the kernel multiplies each of the 3 covered input values by its weight and sums them. This happens for every output channel (here simplified to 1 channel).</p>
+        </div>
+
+        <div class="vis-wrap" style="margin-top:14px">
+          <div class="vis-title">Dimension Flow — RhythmHead</div>
+          <canvas id="cvDimFlow2" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BREATH MATH -->
+  <div id="math-breath" class="subpage">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3 style="color:var(--o)">Step 1 — Temporal Average Pooling</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--o)">pooled<sub style="font-size:10px">f</sub> <span style="color:var(--muted)">=</span> <span style="font-size:16px">(</span>1/T<span style="font-size:16px">)</span> × Σ<sub style="font-size:9px">t=1</sub><sup style="font-size:9px">T</sup> x<sub style="font-size:9px">f, t</sub></div>
+            <div style="color:var(--muted);font-size:11px">
+              x ∈ ℝ<sup>384 × T</sup> &nbsp;(backbone features, channel-first)<br>
+              pooled ∈ ℝ<sup>384</sup> &nbsp;(one value per channel, averaged over all T frames)<br>
+              T can be any length — pooling makes the head <strong>input-length invariant</strong>
+            </div>
+          </div>
+          <p>This collapses the time dimension entirely. A 5-second clip and a 2-second clip both produce the same 384-dim pooled vector shape — the head sees the <strong>average character</strong> of the clip.</p>
+
+          <h3 style="color:var(--o);margin-top:16px">Step 2 — First FC layer with ReLU</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--o)">h <span style="color:var(--muted)">=</span> ReLU(W₁ · pooled + b₁)</div>
+            <div style="color:var(--muted);font-size:11px">
+              W₁ ∈ ℝ<sup>64 × 384</sup> &nbsp;·&nbsp; b₁ ∈ ℝ<sup>64</sup><br>
+              ReLU(z) = max(0, z) &nbsp;applied element-wise<br>
+              h ∈ ℝ<sup>64</sup> &nbsp;(compressed representation of breath character)
+            </div>
+          </div>
+
+          <h3 style="color:var(--o);margin-top:16px">Step 3 — Output layer + Sigmoid</h3>
+          <div style="background:#0a0c14;border:1px solid var(--border);border-radius:8px;padding:16px;margin:10px 0;font-family:monospace;font-size:13px;line-height:2.2">
+            <div style="color:var(--o)">logit <span style="color:var(--muted)">=</span> W₂ · h + b₂</div>
+            <div style="color:var(--o)">breath_prob <span style="color:var(--muted)">=</span> σ(logit) <span style="color:var(--muted)">=</span> 1/(1 + e<sup>−logit</sup>)</div>
+            <div style="color:var(--muted);font-size:11px">
+              W₂ ∈ ℝ<sup>1 × 64</sup> &nbsp;·&nbsp; b₂ ∈ ℝ<sup>1</sup><br>
+              breath_prob ∈ [0, 1] &nbsp;·&nbsp; threshold at 0.5 → breath_bool
+            </div>
+          </div>
+
+          <div class="callout" style="border-color:var(--o)">
+            <strong>Full formula (composed):</strong><br>
+            <code>breath_prob = σ( W₂ · ReLU(W₁ · mean_t(x) + b₁) + b₂ )</code>
+          </div>
+
+          <h3 style="color:var(--o);margin-top:16px">Parameter count</h3>
+          <div style="font-size:13px;display:flex;flex-direction:column;gap:4px;margin-top:6px">
+            <div class="meter-row"><div class="meter-label">W₁ (384×64)</div><div class="meter-track"><div class="meter-fill" style="background:var(--o);width:90%"></div></div><div class="meter-val">24,576</div></div>
+            <div class="meter-row"><div class="meter-label">b₁</div><div class="meter-track"><div class="meter-fill" style="background:var(--o);width:2%"></div></div><div class="meter-val">64</div></div>
+            <div class="meter-row"><div class="meter-label">W₂ (64×1)</div><div class="meter-track"><div class="meter-fill" style="background:var(--pk);width:4%"></div></div><div class="meter-val">64</div></div>
+            <div class="meter-row"><div class="meter-label">b₂</div><div class="meter-track"><div class="meter-fill" style="background:var(--pk);width:1%"></div></div><div class="meter-val">1</div></div>
+            <div class="meter-row" style="font-weight:700"><div class="meter-label">Total</div><div class="meter-track"><div class="meter-fill" style="background:var(--y);width:95%"></div></div><div class="meter-val">~16.5K</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Temporal Pooling — T frames → 1 vector</div>
+          <canvas id="cvPool" height="200"></canvas>
+          <div class="ctrl">
+            <label>T (frames)</label>
+            <input type="range" id="poolT" min="3" max="14" value="8" oninput="drawPooling()">
+            <span id="poolTval" style="font-size:12px;color:var(--g)"></span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">Drag T and watch the pooled vector stay the same size regardless. This is why BreathHead works on clips of any length.</p>
+        </div>
+
+        <div class="vis-wrap" style="margin-top:14px">
+          <div class="vis-title">Sigmoid — logit → probability</div>
+          <canvas id="cvSigmoid2" height="160"></canvas>
+          <div class="ctrl">
+            <label>logit (z)</label>
+            <input type="range" id="sigZ2" min="-60" max="60" value="5" oninput="drawSigmoid2()">
+            <span id="sigOut2" style="font-size:13px;color:var(--g);font-family:monospace"></span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">z &gt;&gt; 0 → prob ≈ 1.0 (definitely breath). z &lt;&lt; 0 → prob ≈ 0.0 (no breath). Decision boundary at z = 0 → prob = 0.5.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVATIONS -->
+  <div id="math-activations" class="subpage">
+    <div class="g2">
+      <div>
+        <div class="card">
+          <h3>Why do we need activation functions?</h3>
+          <p>Without activations, stacking multiple linear layers (y = Wx + b) is mathematically equivalent to just <em>one</em> linear layer. No matter how deep you go, you can always collapse it to a single matrix multiply.</p>
+          <p>Non-linear activations break this — they let the network learn curved decision boundaries and complex feature combinations.</p>
+          <div class="callout" style="border-color:var(--p)"><strong>Proof (without activation):</strong> y = W₂(W₁x + b₁) + b₂ = (W₂W₁)x + (W₂b₁ + b₂) = W′x + b′ → still linear.</div>
+
+          <h3 style="margin-top:18px">Sigmoid σ(z) = 1/(1+e<sup>−z</sup>)</h3>
+          <p><strong>Used in:</strong> All three heads for output probabilities.</p>
+          <p><strong>Range:</strong> (0, 1) — maps any real number to a probability.</p>
+          <p><strong>Gradient:</strong> σ′(z) = σ(z)(1 − σ(z)) — peaks at z=0 (0.25), vanishes for large |z|.</p>
+          <p><strong>Saturation problem:</strong> For very large |z| the gradient ≈ 0 — gradient can't flow. This is why sigmoid is only used at the <em>output</em> layer in VocalStars, not in hidden layers.</p>
+
+          <h3 style="margin-top:18px">ReLU max(0, z)</h3>
+          <p><strong>Used in:</strong> RhythmHead and BreathHead hidden layers.</p>
+          <p><strong>Range:</strong> [0, ∞) — kills negative activations.</p>
+          <p><strong>Gradient:</strong> 1 for z &gt; 0, 0 for z &lt; 0. No saturation for positive values.</p>
+          <p><strong>Sparsity:</strong> Roughly half the neurons output zero at any given time — this acts as implicit regularisation and makes the network efficient.</p>
+          <div class="callout" style="border-color:var(--g)"><strong>Why ReLU in hidden layers, sigmoid at output?</strong> ReLU's gradient doesn't saturate for positive values → better gradient flow during training. Sigmoid is reserved for outputs where we specifically need probabilities ∈ [0,1].</div>
+
+          <h3 style="margin-top:18px">Tanh (backbone Conv layers)</h3>
+          <p><strong>Range:</strong> (−1, 1) — symmetric around zero. Better than sigmoid for hidden layers since outputs are zero-centered, reducing the zig-zag gradient updates.</p>
+          <p><strong>Formula:</strong> tanh(z) = (e<sup>z</sup> − e<sup>−z</sup>) / (e<sup>z</sup> + e<sup>−z</sup>)</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="vis-wrap">
+          <div class="vis-title">Sigmoid — Interactive Explorer</div>
+          <canvas id="cvSigmoid" height="200"></canvas>
+          <div class="ctrl">
+            <label>z (logit)</label>
+            <input type="range" id="sigZ" min="-60" max="60" value="10" step="1" oninput="drawSigmoid()">
+          </div>
+        </div>
+
+        <div class="vis-wrap" style="margin-top:14px">
+          <div class="vis-title">ReLU — Interactive Explorer</div>
+          <canvas id="cvRelu" height="190"></canvas>
+          <div class="ctrl">
+            <label>z (input)</label>
+            <input type="range" id="reluZ" min="-60" max="60" value="15" step="1" oninput="drawRelu()">
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h3>Activation comparison</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <tr style="border-bottom:1px solid var(--border)"><th style="padding:6px;color:var(--muted)">Function</th><th style="padding:6px;color:var(--muted)">Range</th><th style="padding:6px;color:var(--muted)">Used where</th><th style="padding:6px;color:var(--muted)">Saturates?</th></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px;color:var(--g)">Sigmoid σ</td><td style="padding:6px">(0, 1)</td><td style="padding:6px">Output probs</td><td style="padding:6px;color:var(--o)">Yes (both ends)</td></tr>
+            <tr style="border-bottom:1px solid var(--border)"><td style="padding:6px;color:var(--g)">ReLU</td><td style="padding:6px">[0, ∞)</td><td style="padding:6px">Hidden layers</td><td style="padding:6px;color:var(--g)">No (positive side)</td></tr>
+            <tr><td style="padding:6px;color:var(--g)">Tanh</td><td style="padding:6px">(−1, 1)</td><td style="padding:6px">Conv backbone</td><td style="padding:6px;color:var(--o)">Yes (both ends)</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function mathSub(id){
+  document.querySelectorAll('#math .subpage').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('#math-subtabs .subtab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('math-'+id).classList.add('on');
+  event.currentTarget.classList.add('on');
+  setTimeout(()=>{
+    if(id==='pitch'){ drawWeightedMean(); drawDimFlow(); }
+    if(id==='rhythm'){ drawConvAnim(); drawDimFlow2(); }
+    if(id==='breath'){ drawPooling(); drawSigmoid2(); }
+    if(id==='activations'){ drawSigmoid(); drawRelu(); }
+  },30);
+}
+
+function drawSigmoid2(){
+  const c=fitCanvas('cvSigmoid2'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const toX=z=>(z+6)/12*W, toY=p=>H-p*(H-20)-10;
+  g.strokeStyle='#3a3d50'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,toY(0.5)); g.lineTo(W,toY(0.5)); g.stroke();
+  g.beginPath(); g.moveTo(toX(0),0); g.lineTo(toX(0),H); g.stroke();
+  g.strokeStyle='#fb923c'; g.lineWidth=2.5;
+  g.beginPath();
+  for(let px=0;px<W;px++){
+    const z=(px/W)*12-6, p=1/(1+Math.exp(-z));
+    px===0?g.moveTo(px,toY(p)):g.lineTo(px,toY(p));
+  }
+  g.stroke();
+  const rv=parseInt(document.getElementById('sigZ2')?.value||5)/10;
+  const pv=1/(1+Math.exp(-rv));
+  const px=toX(rv), py=toY(pv);
+  g.setLineDash([3,3]); g.strokeStyle='#fbbf2466'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(px,py); g.lineTo(px,H); g.stroke();
+  g.beginPath(); g.moveTo(px,py); g.lineTo(0,py); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle='#fbbf24'; g.beginPath(); g.arc(px,py,6,0,Math.PI*2); g.fill();
+  g.fillStyle='#e2e4f0'; g.font='12px monospace';
+  g.fillText(`logit z = ${rv.toFixed(2)}`,8,16);
+  g.fillText(`breath_prob = ${pv.toFixed(4)}`,8,30);
+  g.fillStyle=pv>0.5?'#34d399':'#6b7280';
+  g.fillText(pv>0.5?'→ breath DETECTED':'→ no breath',8,46);
+  document.getElementById('sigOut2').textContent=`prob = ${pv.toFixed(4)}`;
+}
+
+// poolT label update
+document.getElementById('poolT')?.addEventListener('input',function(){
+  document.getElementById('poolTval').textContent='T = '+this.value+' frames';
+});
+
+// rhythm dim flow (separate canvas)
+function drawDimFlow2(){
+  const c=fitCanvas('cvDimFlow2'); if(!c)return;
+  const g=c.getContext('2d'), W=c.width, H=c.height;
+  g.fillStyle='#0a0c14'; g.fillRect(0,0,W,H);
+  const steps=[
+    {label:'Input (permuted)',dim:'(B, 384, T)',color:'#60a5fa'},
+    {label:'Conv1d(384→128, k=3) + ReLU',dim:'(B, 128, T)',color:'#fb923c'},
+    {label:'Conv1d(128→64, k=3) + ReLU',dim:'(B, 64, T)',color:'#fb923c'},
+    {label:'Conv1d(64→1, k=1)',dim:'(B, 1, T)',color:'#f472b6'},
+    {label:'σ(·)  →  onset_probs',dim:'(B, 1, T)  ∈ [0,1]',color:'#34d399'},
+  ];
+  const bh=Math.floor((H-20)/steps.length)-4, bw=W-20;
+  steps.forEach((step,i)=>{
+    const y=10+i*(bh+4);
+    g.fillStyle=step.color+'22'; g.strokeStyle=step.color+'88'; g.lineWidth=1.5;
+    g.beginPath(); g.roundRect(10,y,bw,bh,6); g.fill(); g.stroke();
+    g.fillStyle=step.color; g.font=`bold ${Math.min(13,bh-6)}px monospace`;
+    g.fillText(step.label,18,y+bh*0.45);
+    g.fillStyle='#6b7280'; g.font=`${Math.min(11,bh-8)}px sans-serif`;
+    g.fillText(step.dim,18,y+bh*0.78);
+  });
+}
+
+window.addEventListener('load',()=>{
+  // math page draws on demand when tab opened
+  document.getElementById('sigZ')?.addEventListener('input',drawSigmoid);
+  document.getElementById('reluZ')?.addEventListener('input',drawRelu);
+});
+</script>
+</body>
+</html>

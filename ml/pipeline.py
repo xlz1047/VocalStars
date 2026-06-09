@@ -1,11 +1,11 @@
 import logging
 from typing import Any
 
-from ml.pitch_detection.pitch_detector import extract_pitch_features
+from ml.pitch_detection.detector import extract_pitch_features
 from ml.rhythm_analysis.rhythm_detector import analyze_rhythm
-from ml.breath_analysis.breath_detector import analyze_breath
+from ml.breath_analysis.detector import analyze_breath
 from ml.feature_extraction.features import extract_spectral_features
-from ml.coaching_engine.coach import build_coaching_outline
+from ml.coaching_engine.feedback import build_coaching_outline
 
 logger = logging.getLogger(__name__)
 

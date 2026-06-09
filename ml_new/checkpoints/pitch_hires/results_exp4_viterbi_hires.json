@@ -1,0 +1,26 @@
+{
+  "exp_name": "exp4_viterbi_hires",
+  "checkpoint": "ml_new/checkpoints/pitch_hires/best.pt",
+  "manifest": "ml_new/data/extracted_hires/manifest.csv",
+  "config": {
+    "n_bins": 180,
+    "bins_per_octave": 36,
+    "sigma_bins": 2.0,
+    "voice_change_penalty": 5.0,
+    "voiced_threshold": 0.5
+  },
+  "argmax": {
+    "rpa": 0.9315213561058044,
+    "rca": 0.9409211874008179,
+    "vdr": 0.9627354741096497,
+    "vfa": 0.05111456289887428,
+    "median_cents": 11.160351753234863
+  },
+  "viterbi": {
+    "rpa": 0.9006356000900269,
+    "rca": 0.9154077172279358,
+    "vdr": 0.9627354741096497,
+    "vfa": 0.05111456289887428,
+    "median_cents": 11.398483276367188
+  }
+}

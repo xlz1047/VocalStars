@@ -6,6 +6,11 @@ __pycache__/
 .env
 .venv/
 venv/
+/ml/CLAUDE.md
+/ml/data/raw
+/ml_2
+/ml/checkpoints
+
 
 # Node
 node_modules/
@@ -29,3 +34,9 @@ Thumbs.db
 *.sqlite
 *.db
 audio_uploads/
+
+/ml/raw/
+/ml/checkpoints/
+/ml_new/checkpoints/
+/ml_new/data/extracted_pyin/
+frontend/tsconfig.tsbuildinfo

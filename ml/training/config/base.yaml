@@ -1,0 +1,15 @@
+# Base training configuration
+model:
+  backbone: {}
+  heads: {}
+
+training:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 1.0e-3
+  optimizer: adam
+
+data:
+  sample_rate: 16000
+  frame_samples: 4096
+  overlap: 0.5
