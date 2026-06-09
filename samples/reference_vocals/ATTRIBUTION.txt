@@ -1,0 +1,24 @@
+VocalSet: A Singing Voice Dataset for Machine Learning
+=======================================================
+
+The WAV files in samples/reference_vocals/vocalset/ are excerpts from the
+VocalSet dataset, used here as preloaded reference tracks for the VocalStars
+vocal coaching app.
+
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+Source:  https://zenodo.org/record/1193957
+Authors: Julia Wilkins, Prem Seetharaman, Anna Huber, Juan Pablo Bello
+Paper:   "VocalSet: A Singing Voice Dataset" (ISMIR 2018)
+
+Files included:
+  f1_long_forte_a.wav         — Female singer 1, forte (loud) long tone, vowel "a"
+  f1_long_pp_a.wav            — Female singer 1, pianissimo (soft) long tone, vowel "a"
+  f1_long_straight_a.wav      — Female singer 1, straight tone, vowel "a"
+  f1_arpeggios_vibrato_u.wav  — Female singer 1, vibrato on arpeggios, vowel "u"
+  f1_arpeggios_breathy_a.wav  — Female singer 1, breathy tone on arpeggios, vowel "a"
+  m1_long_forte_a.wav         — Male singer 1, forte (loud) long tone, vowel "a"
+  m1_long_pp_a.wav            — Male singer 1, pianissimo (soft) long tone, vowel "a"
+  m1_arpeggios_vibrato_u.wav  — Male singer 1, vibrato on arpeggios, vowel "u"
+
+These clips are used as reference audio only. No modification has been made
+to the original recordings.

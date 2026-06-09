@@ -7,9 +7,12 @@ import { createServer as createViteServer } from "vite";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json());
+
+const goldenExamplesPath = path.resolve(process.cwd(), "..", "reports", "golden_ui_examples");
+app.use("/golden-ui-examples", express.static(goldenExamplesPath));
 
 // Initialize Google Gen AI
 const ai = new GoogleGenAI({
@@ -19,6 +22,11 @@ const ai = new GoogleGenAI({
       "User-Agent": "build",
     }
   }
+});
+
+// Gemini availability check — called once on mount by ResultsView
+app.get("/api/coaching-status", (_req, res) => {
+  res.json({ available: !!process.env.GEMINI_API_KEY });
 });
 
 // AI Professional Coaching endpoint proxy

@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VocalStars — AI Vocal Coach Presentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0f1117;
+  --card:    #1a1d27;
+  --card2:   #14161f;
+  --border:  #2a2d3a;
+  --accent1: #7c6af7;
+  --accent2: #3b9eff;
+  --accent3: #2dd4a0;
+  --accent4: #f97316;
+  --accent5: #e879a0;
+  --green:   #22c55e;
+  --yellow:  #f9c74f;
+  --red:     #ef4444;
+  --text:    #e2e4ef;
+  --muted:   #7b7f99;
+  --slide-w: 1280px;
+  --slide-h: 720px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #070910; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+
+/* ── SLIDE CONTAINER ── */
+#deck { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+.slide {
+  width: var(--slide-w); height: var(--slide-h);
+  background: var(--bg);
+  border-radius: 12px;
+  position: absolute;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+}
+.slide.active { display: flex; }
+
+/* ── PROGRESS BAR ── */
+#progress {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  transition: width .3s ease; z-index: 200;
+}
+
+/* ── SLIDE COUNTER ── */
+#counter {
+  position: fixed; bottom: 18px; right: 24px;
+  color: var(--muted); font-size: 13px; font-weight: 500; letter-spacing: 0.5px;
+  z-index: 200;
+}
+
+/* ── NAV HINTS ── */
+#nav-hint {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  color: #3a3d50; font-size: 12px; z-index: 200;
+}
+
+/* ── SHARED LAYOUT ── */
+.slide-header {
+  padding: 28px 52px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  padding-bottom: 18px;
+  flex-shrink: 0;
+}
+.slide-tag {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 20px; background: var(--card);
+  border: 1px solid var(--border); color: var(--muted);
+}
+.slide-title {
+  font-size: 22px; font-weight: 700; color: var(--text);
+}
+.slide-body { flex: 1; padding: 0 52px; display: flex; overflow: hidden; }
+
+/* ── ACCENT BAR ── */
+.accent-bar {
+  height: 4px; width: 100%;
+  background: linear-gradient(90deg, var(--accent1) 0%, var(--accent2) 50%, var(--accent3) 100%);
+  flex-shrink: 0;
+}
+
+/* ────────────────────────────
+   SLIDE 1 — TITLE
+──────────────────────────── */
+#s1 { background: var(--bg); }
+#s1 .accent-bar { height: 5px; }
+#s1 .body {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0; text-align: center; padding: 0 80px;
+}
+#s1 .eyebrow {
+  font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent1); margin-bottom: 18px;
+}
+#s1 h1 {
+  font-size: 72px; font-weight: 900; line-height: 1;
+  background: linear-gradient(135deg, #fff 30%, var(--accent1) 70%, var(--accent2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  margin-bottom: 14px;
+}
+#s1 .subtitle {
+  font-size: 22px; font-weight: 400; color: var(--muted); margin-bottom: 48px;
+}
+#s1 .team-row {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 24px;
+}
+#s1 .team-chip {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 24px; padding: 8px 18px;
+  font-size: 14px; font-weight: 500; color: var(--text);
+}
+#s1 .github-link {
+  font-size: 13px; color: var(--accent2); text-decoration: none; font-weight: 500;
+  background: var(--card); border: 1px solid var(--accent2)44;
+  padding: 6px 16px; border-radius: 20px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+#s1 .github-link:hover { border-color: var(--accent2); }
+
+/* ────────────────────────────
+   SLIDE 2 — MOTIVATION
+──────────────────────────── */
+#s2 .slide-body { align-items: stretch; gap: 24px; padding-top: 30px; padding-bottom: 30px; }
+.motive-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+.motive-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 28px; display: flex; flex-direction: column; gap: 10px;
+}
+.motive-card .icon { font-size: 28px; }
+.motive-card h3 { font-size: 16px; font-weight: 700; color: var(--text); }
+.motive-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+.goal-banner {
+  background: linear-gradient(135deg, var(--accent1)22, var(--accent2)22);
+  border: 1px solid var(--accent1)55; border-radius: 12px;
+  padding: 20px 28px; display: flex; align-items: center; gap: 16px;
+  width: 100%;
+}
+.goal-banner .label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--accent1); white-space: nowrap; }
+.goal-banner p { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.motive-left { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+
+/* ────────────────────────────
+   SLIDE 3 — SYSTEM OVERVIEW
+──────────────────────────── */
+#s3 .slide-body { padding-top: 24px; padding-bottom: 24px; flex-direction: column; gap: 14px; }
+.pipeline-flow {
+  display: flex; align-items: stretch; gap: 0; width: 100%; flex: 1;
+}
+.pipe-stage {
+  flex: 1; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  position: relative;
+}
+.pipe-stage + .pipe-stage { margin-left: -1px; border-radius: 0; }
+.pipe-stage:first-child { border-radius: 10px 0 0 10px; }
+.pipe-stage:last-child { border-radius: 0 10px 10px 0; }
+.pipe-arrow {
+  width: 32px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 20px; flex-shrink: 0; z-index: 1;
+}
+.pipe-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.pipe-stage h4 { font-size: 13px; font-weight: 700; color: var(--text); }
+.pipe-stage ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.pipe-stage ul li { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.pipe-stage ul li::before { content: '·  '; color: var(--accent1); }
+
+.p1 { border-color: var(--accent2)66; }
+.p1 .pipe-num { background: var(--accent2)22; color: var(--accent2); }
+.p1 h4 { color: var(--accent2); }
+.p2 { border-color: var(--accent3)66; }
+.p2 .pipe-num { background: var(--accent3)22; color: var(--accent3); }
+.p2 h4 { color: var(--accent3); }
+.p3 { border-color: var(--accent1)66; }
+.p3 .pipe-num { background: var(--accent1)22; color: var(--accent1); }
+.p3 h4 { color: var(--accent1); }
+.p4 { border-color: var(--accent4)66; }
+.p4 .pipe-num { background: var(--accent4)22; color: var(--accent4); }
+.p4 h4 { color: var(--accent4); }
+.p5 { border-color: var(--accent5)66; }
+.p5 .pipe-num { background: var(--accent5)22; color: var(--accent5); }
+.p5 h4 { color: var(--accent5); }
+
+.specs-row { display: flex; gap: 10px; width: 100%; flex-shrink: 0; }
+.spec-chip {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; font-size: 12px; color: var(--muted); flex: 1; text-align: center;
+}
+.spec-chip strong { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+
+/* ────────────────────────────
+   SLIDE 4 — EVALUATION
+──────────────────────────── */
+#s4 .slide-body { padding-top: 24px; padding-bottom: 24px; flex-direction: column; gap: 18px; }
+.eval-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; flex: 1; }
+.eval-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 12px;
+}
+.eval-card h3 { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.eval-card .metric-why { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.metric-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.metric-table th {
+  text-align: left; padding: 5px 8px; font-weight: 600; font-size: 11px;
+  letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border);
+}
+.metric-table td { padding: 6px 8px; border-bottom: 1px solid var(--border)88; }
+.metric-table tr:last-child td { border-bottom: none; }
+.metric-table .row-label { color: var(--text); font-weight: 500; }
+.bad { color: var(--red); font-weight: 600; }
+.good { color: var(--green); font-weight: 700; }
+.ok { color: var(--yellow); font-weight: 600; }
+
+.result-banner {
+  background: var(--card); border: 1px solid var(--accent3)55;
+  border-radius: 10px; padding: 14px 22px;
+  display: flex; align-items: center; gap: 20px; width: 100%; flex-shrink: 0;
+}
+.result-stat { text-align: center; flex: 1; }
+.result-stat .num { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, var(--accent3), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.result-stat .label { font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+.result-divider { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; }
+
+/* ────────────────────────────
+   SLIDE 5 — LIVE DEMO
+──────────────────────────── */
+#s5 .slide-body { align-items: center; justify-content: center; flex-direction: column; gap: 32px; }
+.demo-center { text-align: center; max-width: 700px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.demo-center h2 { font-size: 42px; font-weight: 800; color: var(--text); }
+.demo-center p { font-size: 18px; color: var(--muted); line-height: 1.6; }
+.demo-steps { display: flex; gap: 16px; width: 100%; justify-content: center; }
+.demo-step {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 22px; width: 180px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.demo-step .step-icon { font-size: 26px; }
+.demo-step .step-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.demo-step .step-desc { font-size: 11.5px; color: var(--muted); }
+.demo-arrow { color: var(--muted); font-size: 22px; align-self: center; }
+.demo-note {
+  font-size: 13px; color: var(--muted); background: var(--card);
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px;
+}
+
+/* ────────────────────────────
+   KEYBOARD NAVIGATION
+──────────────────────────── */
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="counter"></div>
+<div id="nav-hint">← → arrow keys · Space to advance</div>
+
+<div id="deck">
+
+  <!-- ══════════════════════════════════════
+       SLIDE 1 — TITLE & TEAM
+  ══════════════════════════════════════ -->
+  <div class="slide active" id="s1">
+    <div class="accent-bar"></div>
+    <div class="body">
+      <div class="eyebrow">Drexel University · AI for Music</div>
+      <h1>VocalStars</h1>
+      <p class="subtitle">An AI Vocal Coach for Everyday Singers</p>
+      <div class="team-row">
+        <div class="team-chip">Uddhav Jain</div>
+        <div class="team-chip">Xin Liu</div>
+        <div class="team-chip">Stefan</div>
+        <div class="team-chip">Ush</div>
+      </div>
+      <a class="github-link" href="https://github.com/xlz1047/VocalStars" target="_blank">
+        ⌥ github.com/xlz1047/VocalStars
+      </a>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SLIDE 2 — MOTIVATION & GOAL
+  ══════════════════════════════════════ -->
+  <div class="slide" id="s2">
+    <div class="accent-bar"></div>
+    <div class="slide-header">
+      <span class="slide-tag">Motivation</span>
+      <span class="slide-title">Why an AI Vocal Coach?</span>
+    </div>
+    <div class="slide-body">
+      <div style="display:flex;flex-direction:column;gap:16px;width:100%;padding-top:10px;padding-bottom:10px;">
+        <div class="motive-grid">
+          <div class="motive-card">
+            <div class="icon">🎤</div>
+            <h3>The Problem</h3>
+            <p>Most people who sing — in the shower, car, or at karaoke — have no access to feedback. Professional vocal coaches are expensive and inaccessible.</p>
+          </div>
+          <div class="motive-card">
+            <div class="icon">🎯</div>
+            <h3>Target User</h3>
+            <p>Casual beginner singers with no musical training. They want honest, actionable feedback — not scoring or judging — to improve over time.</p>
+          </div>
+          <div class="motive-card">
+            <div class="icon">🧠</div>
+            <h3>Our Definition of "Vocal Coach"</h3>
+            <p>A system that listens, identifies measurable voice patterns (pitch, breath, technique), and returns specific, actionable coaching guidance.</p>
+          </div>
+          <div class="motive-card">
+            <div class="icon">📱</div>
+            <h3>Why AI?</h3>
+            <p>ML models can analyze pitch accuracy, breath control, and vocal technique in real-time from a phone or laptop — no expensive hardware required.</p>
+          </div>
+        </div>
+        <div class="goal-banner">
+          <span class="label">System Goal</span>
+          <p>Build a web app that takes a short audio recording and returns pitch accuracy analysis, breathing feedback, and technique coaching — running entirely on CPU, no musical expertise required from the user.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SLIDE 3 — SYSTEM OVERVIEW
+  ══════════════════════════════════════ -->
+  <div class="slide" id="s3">
+    <div class="accent-bar"></div>
+    <div class="slide-header">
+      <span class="slide-tag">System Overview</span>
+      <span class="slide-title">Full Pipeline — Five Stages</span>
+    </div>
+    <div class="slide-body">
+
+      <div style="display:flex;flex-direction:column;gap:14px;width:100%;padding-top:16px;padding-bottom:8px;">
+
+        <!-- pipeline row -->
+        <div style="display:flex;align-items:stretch;gap:8px;flex:1;">
+
+          <div class="pipe-stage p1" style="flex:1.1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="pipe-num">1</div>
+              <h4>Data</h4>
+            </div>
+            <ul>
+              <li>GTSinger (melody + technique)</li>
+              <li>VocalSet (vocal techniques)</li>
+              <li>PopBuTFy (pop vocals)</li>
+              <li>MIR-1K (eval only)</li>
+              <li>Labels: pitch (pyin), VAD,<br>onset, breath, technique</li>
+            </ul>
+          </div>
+
+          <div style="display:flex;align-items:center;color:#3a3d50;font-size:18px;">▶</div>
+
+          <div class="pipe-stage p2" style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="pipe-num">2</div>
+              <h4>Preprocessing</h4>
+            </div>
+            <ul>
+              <li>16 kHz mono resample</li>
+              <li>256 ms frames, 50% overlap</li>
+              <li>HCQT features</li>
+              <li>6 harmonics × 360 bins</li>
+              <li>Log-mel (128 bands)</li>
+              <li>Peak normalization</li>
+            </ul>
+          </div>
+
+          <div style="display:flex;align-items:center;color:#3a3d50;font-size:18px;">▶</div>
+
+          <div class="pipe-stage p3" style="flex:1.2;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="pipe-num">3</div>
+              <h4>Model</h4>
+            </div>
+            <ul>
+              <li><strong style="color:#7c6af7">Model A</strong> — Custom HCQT+GRU</li>
+              <li>~256K params · 1 MB</li>
+              <li>Outputs: VAD, pitch, onset,<br>breath, technique tags</li>
+              <li><strong style="color:#a78bfa">NanoPitch</strong> — CNN guard</li>
+              <li>332K params · noise veto</li>
+              <li><strong style="color:#93c5fd">pyin</strong> — DSP f0 baseline</li>
+            </ul>
+          </div>
+
+          <div style="display:flex;align-items:center;color:#3a3d50;font-size:18px;">▶</div>
+
+          <div class="pipe-stage p4" style="flex:1.1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="pipe-num">4</div>
+              <h4>Post-processing</h4>
+            </div>
+            <ul>
+              <li>Hybrid f0/VAD decision</li>
+              <li>NanoPitch veto on noise</li>
+              <li>Task-aware evaluators</li>
+              <li>f0 smoothing</li>
+              <li>Note segmentation</li>
+              <li>Validity gate (blocks noise)</li>
+            </ul>
+          </div>
+
+          <div style="display:flex;align-items:center;color:#3a3d50;font-size:18px;">▶</div>
+
+          <div class="pipe-stage p5" style="flex:1.1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="pipe-num">5</div>
+              <h4>Feedback to User</h4>
+            </div>
+            <ul>
+              <li>Pitch lane visualization</li>
+              <li>Issue markers on timeline</li>
+              <li>Coaching cards + scores</li>
+              <li>Technique feedback</li>
+              <li>Exercise suggestions</li>
+              <li>Vite + React frontend</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- specs row -->
+        <div class="specs-row">
+          <div class="spec-chip"><strong>CPU Only</strong>No GPU required</div>
+          <div class="spec-chip"><strong>Offline</strong>Batch inference</div>
+          <div class="spec-chip"><strong>~0.1 s / 5 s clip</strong>NanoPitch runtime</div>
+          <div class="spec-chip"><strong>1 MB model</strong>Model A checkpoint</div>
+          <div class="spec-chip"><strong>FastAPI + SQLite</strong>Python 3.11 backend</div>
+          <div class="spec-chip"><strong>Vite + React</strong>TypeScript frontend</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SLIDE 4 — EVALUATION
+  ══════════════════════════════════════ -->
+  <div class="slide" id="s4">
+    <div class="accent-bar"></div>
+    <div class="slide-header">
+      <span class="slide-tag">Evaluation</span>
+      <span class="slide-title">Metrics, Why They Matter, and Results</span>
+    </div>
+    <div class="slide-body">
+      <div style="display:flex;flex-direction:column;gap:14px;width:100%;padding-top:16px;padding-bottom:8px;">
+
+        <div class="eval-cols">
+
+          <!-- Metric 1 -->
+          <div class="eval-card">
+            <h3>
+              <span style="background:var(--red)22;border:1px solid var(--red)44;color:var(--red);padding:2px 8px;border-radius:6px;font-size:11px;">Metric 1</span>
+              False-Voiced Rate (FVR)
+            </h3>
+            <p class="metric-why">A coaching app that hallucinates singing on background noise gives meaningless feedback. FVR = % of frames wrongly called "voiced" on non-singing audio. <strong>Lower is better.</strong></p>
+            <table class="metric-table">
+              <tr><th>Input</th><th>Model A alone</th><th>NanoPitch</th><th>Hybrid ✓</th></tr>
+              <tr>
+                <td class="row-label">Fan-noise silence</td>
+                <td class="bad">95.5%</td>
+                <td class="good">0.0%</td>
+                <td class="good">0.0%</td>
+              </tr>
+              <tr>
+                <td class="row-label">White noise</td>
+                <td class="bad">49.9%</td>
+                <td class="good">0.0%</td>
+                <td class="good">0.0%</td>
+              </tr>
+              <tr>
+                <td class="row-label">Digital silence</td>
+                <td class="ok">0.2%</td>
+                <td class="good">0.0%</td>
+                <td class="good">0.0%</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Metric 2 -->
+          <div class="eval-card">
+            <h3>
+              <span style="background:var(--accent2)22;border:1px solid var(--accent2)44;color:var(--accent2);padding:2px 8px;border-radius:6px;font-size:11px;">Metric 2</span>
+              Pitch Jump Rate
+            </h3>
+            <p class="metric-why">Octave/semitone discontinuities in f0 produce incoherent pitch feedback. The hybrid uses pyin for clean f0 on diagnostic tasks. <strong>Lower is better.</strong></p>
+            <table class="metric-table">
+              <tr><th>Recording</th><th>Model A raw</th><th>pyin (hybrid)</th></tr>
+              <tr>
+                <td class="row-label">Sustained vowel</td>
+                <td class="bad">27 oct jumps</td>
+                <td class="good">0</td>
+              </tr>
+              <tr>
+                <td class="row-label">Pitch slide</td>
+                <td class="ok">2 oct jumps</td>
+                <td class="good">0</td>
+              </tr>
+              <tr>
+                <td class="row-label">Free singing</td>
+                <td class="bad">8 oct jumps</td>
+                <td class="good">0</td>
+              </tr>
+            </table>
+            <div style="margin-top:4px;">
+              <p class="metric-why" style="color:var(--muted);font-size:11.5px;">Pitch accuracy (synthetic tones): <strong style="color:var(--green)">219.98 Hz</strong> vs 220 Hz target — 0.02 Hz error.</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom banner — key numbers -->
+        <div class="result-banner">
+          <div class="result-stat">
+            <div class="num">0%</div>
+            <div class="label">False-voiced rate<br>on silence / noise</div>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <div class="num">0</div>
+            <div class="label">Pitch jumps<br>on diagnostic tasks (pyin)</div>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <div class="num">97%</div>
+            <div class="label">VAD F1 score<br>(epoch 70, train log)</div>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <div class="num">13.3¢</div>
+            <div class="label">Median pitch error<br>(cents, train log)</div>
+          </div>
+          <div class="result-divider"></div>
+          <div class="result-stat">
+            <div class="num">5/5</div>
+            <div class="label">Behavioral regression<br>checks pass</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       SLIDE 5 — LIVE DEMO
+  ══════════════════════════════════════ -->
+  <div class="slide" id="s5">
+    <div class="accent-bar"></div>
+    <div class="slide-header">
+      <span class="slide-tag">Live Demo</span>
+      <span class="slide-title">System in Action</span>
+    </div>
+    <div class="slide-body">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;gap:28px;padding-top:20px;padding-bottom:20px;">
+
+        <div class="demo-steps">
+          <div class="demo-step">
+            <div class="step-icon">🎙️</div>
+            <div class="step-label">Record / Upload</div>
+            <div class="step-desc">User sings a short clip in the browser</div>
+          </div>
+          <div class="demo-arrow">▶</div>
+          <div class="demo-step">
+            <div class="step-icon">🔬</div>
+            <div class="step-label">Analyze</div>
+            <div class="step-desc">Hybrid model stack: pitch, VAD, breath, technique</div>
+          </div>
+          <div class="demo-arrow">▶</div>
+          <div class="demo-step">
+            <div class="step-icon">📊</div>
+            <div class="step-label">Pitch Lane</div>
+            <div class="step-desc">f0 contour, issue markers, cents error overlay</div>
+          </div>
+          <div class="demo-arrow">▶</div>
+          <div class="demo-step">
+            <div class="step-icon">💬</div>
+            <div class="step-label">Coaching</div>
+            <div class="step-desc">Actionable feedback cards + exercise suggestions</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <div class="demo-note">📂 Sample inputs in <code>samples/</code> — try <code>03_sustained_aaa.wav</code></div>
+          <div class="demo-note">🔗 GitHub: <code>github.com/xlz1047/VocalStars</code></div>
+        </div>
+
+        <div style="background:var(--card);border:1px solid var(--accent1)44;border-radius:10px;padding:16px 28px;text-align:center;max-width:600px;">
+          <p style="font-size:14px;color:var(--muted);">Backup video ready if live demo fails. All sample audio included in the repo for reproducibility.</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- #deck -->
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = 0;
+
+function show(n) {
+  slides[current].classList.remove('active');
+  current = Math.max(0, Math.min(n, total - 1));
+  slides[current].classList.add('active');
+  document.getElementById('counter').textContent = (current + 1) + ' / ' + total;
+  document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); show(current - 1); }
+  if (e.key === 'Home') show(0);
+  if (e.key === 'End')  show(total - 1);
+});
+
+// click right half to advance, left half to go back
+document.getElementById('deck').addEventListener('click', e => {
+  if (e.clientX > window.innerWidth / 2) show(current + 1);
+  else show(current - 1);
+});
+
+show(0);
+</script>
+</body>
+</html>

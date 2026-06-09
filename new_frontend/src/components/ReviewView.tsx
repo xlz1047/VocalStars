@@ -16,28 +16,48 @@ import {
   TrendingUp,
   X
 } from "lucide-react";
-import { Song, PerformanceResult } from "../types";
+import { Song, PerformanceResult, TaskConfig, UiSegment } from "../types";
+import { buildImprovementPath } from "../utils/improvementPath";
+import MelSpectrogramView from "./MelSpectrogramView";
+import PitchLane from "./PitchLane";
+import PosteriorConfidenceMap from "./PosteriorConfidenceMap";
+import RecordingPlaybackControls from "./RecordingPlaybackControls";
+import SegmentMarkerTrack from "./SegmentMarkerTrack";
+import SpectralToneProxyMap from "./SpectralToneProxyMap";
+import WaveformTimeline from "./WaveformTimeline";
 
 interface ReviewViewProps {
   song: Song;
   result: PerformanceResult;
+  recordingUrl?: string | null;
+  recordingLabel?: string | null;
+  onTryAgainSameTask?: () => void;
+  onBackToTaskSetup?: () => void;
+  onPracticeTask?: (taskConfig: TaskConfig, presetId?: string) => void;
   onClose: () => void;
 }
 
 export default function ReviewView({ 
   song, 
   result, 
+  recordingUrl,
+  recordingLabel,
+  onTryAgainSameTask,
+  onBackToTaskSetup,
+  onPracticeTask,
   onClose 
 }: ReviewViewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(102); // 01:42 timestamp as in screen
+  const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<1 | 0.5 | 1.5>(1);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [activeTab, setActiveTab] = useState<"Pitch" | "Confidence">("Pitch");
+  const [selectedRegion, setSelectedRegion] = useState<UiSegment | null>(null);
 
   // Track coordinates and state
   const timelineRef = useRef<HTMLDivElement>(null);
-  const totalDuration = 225; // 03:45 in seconds
+  const totalDuration = Math.max(result.uiReadyAnalysis?.audio?.duration_s || 0, 0.1);
+  const recommendedFocus = result.uiReadyAnalysis ? buildImprovementPath(result.uiReadyAnalysis).primaryFocus : null;
 
   useEffect(() => {
     let playTimer: NodeJS.Timeout;
@@ -56,8 +76,9 @@ export default function ReviewView({
   }, [isPlaying, playbackSpeed]);
 
   const formatTimestamp = (sec: number) => {
-    const minutes = Math.floor(sec / 60);
-    const secs = sec % 60;
+    const whole = Math.max(0, Math.floor(sec));
+    const minutes = Math.floor(whole / 60);
+    const secs = whole % 60;
     return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
@@ -94,24 +115,8 @@ export default function ReviewView({
       })
     : [
         {
-          category: "EXCELLENT BREATH SUPPORT",
-          text: "Your diaphragm control during the bridge section (02:14) was textbook perfect. Keep that tension low.",
-          icon: "check",
-          color: "text-[#3cddc7]",
-          borderColor: "border-[#3cddc7]/30 shadow-[0_4px_12px_rgba(60,221,199,0.05)]",
-          bgColor: "bg-[#131520]/85"
-        },
-        {
-          category: "PITCH DRIFT: CHORUS 2",
-          text: "You're slightly sharp on the high Bb. Try opening your jaw a bit more for more resonance.",
-          icon: "warning",
-          color: "text-primary",
-          borderColor: "border-primary/25 shadow-[0_4px_12px_rgba(255,177,192,0.05)]",
-          bgColor: "bg-[#131520]/85"
-        },
-        {
-          category: "DYNAMIC EXPRESSION",
-          text: "Great use of vibrato on the trailing notes. It adds a professional 'finished' quality to the recording.",
+          category: "REVIEW READY",
+          text: "Replay your recorded take and inspect the frame-level analysis when available.",
           icon: "sparkle",
           color: "text-[#ddb7ff]",
           borderColor: "border-[#ddb7ff]/25 shadow-[0_4px_12px_rgba(221,183,255,0.05)]",
@@ -240,8 +245,47 @@ export default function ReviewView({
 
       </div>
 
+      {result.uiReadyAnalysis && (
+        <section className="bg-[#080911] border-t border-white/10 p-6 md:p-8 space-y-6">
+          <div>
+            <p className="text-[10px] font-black text-[#ddb7ff] tracking-widest uppercase">Frame-by-frame review</p>
+            <h2 className="font-display font-black text-2xl text-white mt-1">Analysis Timeline</h2>
+          </div>
+          <div className="grid xl:grid-cols-2 gap-6">
+            <div className="xl:col-span-2">
+              <MelSpectrogramView analysis={result.uiReadyAnalysis} compact />
+            </div>
+            <PitchLane analysis={result.uiReadyAnalysis} compact />
+            <WaveformTimeline analysis={result.uiReadyAnalysis} compact />
+            <PosteriorConfidenceMap analysis={result.uiReadyAnalysis} compact />
+            <SpectralToneProxyMap analysis={result.uiReadyAnalysis} compact />
+            <div className="xl:col-span-2">
+              <SegmentMarkerTrack
+                analysis={result.uiReadyAnalysis}
+                compact
+                selectedSegmentId={selectedRegion?.id || null}
+                onSelectSegment={(segment) => {
+                  setSelectedRegion(segment);
+                  setCurrentTime(Number(segment.start_s || 0));
+                }}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* BOTTOM Detail Scrub Timeline Controls panel */}
       <footer className="bg-[#0c0e17]/90 border-t border-white/10 p-6 md:p-8 flex flex-col gap-5">
+        <RecordingPlaybackControls
+          audioUrl={recordingUrl}
+          label={recordingLabel || "Actual Recorded Take"}
+          selectedRegion={selectedRegion}
+          onTryAgainSameTask={onTryAgainSameTask}
+          onBackToTaskSetup={onBackToTaskSetup}
+          recommendedFocus={recommendedFocus}
+          onPracticeTask={onPracticeTask}
+          compact
+        />
         
         {/* Playback Controls & zoom row */}
         <div className="flex justify-between items-center flex-wrap gap-4">

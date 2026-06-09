@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VocalStars ml_new — Architecture Presentation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0f1117;
+  --card:    #1a1d27;
+  --card2:   #14161f;
+  --border:  #2a2d3a;
+  --accent1: #7c6af7;
+  --accent2: #3b9eff;
+  --accent3: #2dd4a0;
+  --accent4: #f97316;
+  --accent5: #e879a0;
+  --green:   #22c55e;
+  --yellow:  #f9c74f;
+  --text:    #e2e4ef;
+  --muted:   #7b7f99;
+  --red:     #ef4444;
+  --highlight: #f9c74f;
+  --eli5-bg: #1e1a0d;
+  --eli5-border: #f9c74f40;
+  --eli5-text: #fde68a;
+  --warn-bg:  #1e0e0e;
+  --warn-border: #ef444440;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.65; }
+code, pre, .mono { font-family: 'Fira Code', monospace; }
+
+/* NAV */
+#topnav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(15,17,23,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px; display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+}
+#topnav a {
+  color: var(--muted); text-decoration: none; font-size: 0.78rem; font-weight: 500;
+  padding: 13px 11px; letter-spacing: 0.2px; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+}
+#topnav a:hover, #topnav a.active { color: var(--text); border-bottom-color: var(--accent1); }
+#topnav .spacer { flex: 1; min-width: 8px; }
+#simplify-all {
+  background: var(--eli5-bg); border: 1px solid var(--eli5-border);
+  color: var(--yellow); padding: 5px 12px; border-radius: 20px;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  transition: background .2s;
+}
+#simplify-all:hover { background: #2d2610; }
+#simplify-all.active { background: var(--yellow); color: #0f1117; }
+
+/* SECTIONS */
+.section { max-width: 1100px; margin: 0 auto; padding: 64px 32px 52px; border-bottom: 1px solid var(--border); }
+.section-anchor { display: block; position: relative; top: -70px; visibility: hidden; }
+.section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.section-header h2 { font-size: 1.55rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.section-num { font-size: 0.82rem; font-weight: 700; color: var(--muted); font-family: 'Fira Code', monospace; }
+.eli5-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--eli5-bg); border: 1px solid var(--eli5-border);
+  color: var(--yellow); padding: 6px 14px; border-radius: 20px;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  transition: all .2s; white-space: nowrap; flex-shrink: 0;
+}
+.eli5-btn:hover { background: #2d2610; }
+.eli5-btn.active { background: var(--yellow); color: #0f1117; border-color: var(--yellow); }
+
+/* ELI5 toggle */
+.simple-text { display: none; }
+.section.eli5-active .tech-text  { display: none !important; }
+.section.eli5-active .simple-text { display: block !important; }
+.eli5-box { background: var(--eli5-bg); border: 1px solid var(--eli5-border); border-radius: 12px; padding: 18px 22px; margin-top: 16px; color: var(--eli5-text); font-size: 0.95rem; line-height: 1.75; }
+.eli5-box strong { color: var(--yellow); }
+
+/* WARN BOX */
+.warn-box { background: var(--warn-bg); border: 1px solid var(--warn-border); border-left: 3px solid var(--red); border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 16px 0; font-size: 0.88rem; color: #fca5a5; line-height: 1.65; }
+.warn-box strong { color: var(--red); }
+
+/* INFO NOTE */
+.note-box { background: rgba(59,158,255,.05); border: 1px solid rgba(59,158,255,.2); border-left: 3px solid var(--accent2); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0; font-size: 0.84rem; color: var(--muted); line-height: 1.65; }
+.note-box strong { color: var(--accent2); }
+
+/* CARDS */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+@media(max-width:700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* BADGES */
+.badge { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.4px; }
+.badge-purple { background: rgba(124,106,247,.15); color: var(--accent1); border: 1px solid rgba(124,106,247,.35); }
+.badge-blue   { background: rgba(59,158,255,.15);  color: var(--accent2); border: 1px solid rgba(59,158,255,.35); }
+.badge-teal   { background: rgba(45,212,160,.15);  color: var(--accent3); border: 1px solid rgba(45,212,160,.35); }
+.badge-orange { background: rgba(249,115,22,.15);  color: var(--accent4); border: 1px solid rgba(249,115,22,.35); }
+.badge-pink   { background: rgba(232,121,160,.15); color: var(--accent5); border: 1px solid rgba(232,121,160,.35); }
+.badge-yellow { background: rgba(249,199,79,.15);  color: var(--yellow);  border: 1px solid rgba(249,199,79,.35); }
+.badge-green  { background: rgba(34,197,94,.15);   color: var(--green);   border: 1px solid rgba(34,197,94,.35); }
+.badge-red    { background: rgba(239,68,68,.15);   color: var(--red);     border: 1px solid rgba(239,68,68,.35); }
+.tag-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+/* HERO */
+#hero { text-align: center; padding: 72px 32px 52px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #131623 0%, var(--bg) 100%); }
+.hero-title { font-size: clamp(2.2rem, 5.5vw, 3.8rem); font-weight: 800; letter-spacing: -1px; line-height: 1.1; background: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 50%, var(--accent3) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-sub { color: var(--muted); font-size: 1rem; margin-top: 10px; }
+.stat-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 28px 0 20px; }
+.stat-pill { background: var(--card); border: 1px solid var(--border); border-radius: 40px; padding: 9px 20px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.stat-pill .val { font-size: 1.45rem; font-weight: 800; font-family: 'Fira Code', monospace; color: var(--highlight); }
+.stat-pill .lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+.waveform { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 46px; margin: 22px auto 0; }
+.wave-bar { width: 5px; border-radius: 3px; animation: wavebounce 1.2s ease-in-out infinite alternate; }
+.wave-bar:nth-child(odd) { background: var(--accent1); }
+.wave-bar:nth-child(even) { background: var(--accent2); }
+.wave-bar:nth-child(3n) { background: var(--accent3); }
+@keyframes wavebounce { 0% { height: 8px; opacity: .5; } 100% { height: 38px; opacity: 1; } }
+
+/* ARCHITECTURE */
+.arch-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 28px 0; }
+.arch-layer { display: flex; justify-content: center; width: 100%; }
+.arch-connector { display: flex; justify-content: center; align-items: center; height: 30px; width: 100%; }
+.arch-connector svg { width: 100%; height: 30px; }
+.arch-box { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 20px; cursor: default; transition: border-color .2s, box-shadow .2s; position: relative; }
+.arch-box .box-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 5px; }
+.arch-box .box-detail { font-size: 0.75rem; color: var(--muted); font-family: 'Fira Code', monospace; line-height: 1.55; }
+.arch-box .box-tag { position: absolute; top: -1px; right: 12px; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 0 0 8px 8px; text-transform: uppercase; }
+.arch-input { border-color: var(--accent2); max-width: 480px; width: 100%; }
+.arch-input .box-title { color: var(--accent2); }
+.arch-input .box-tag { background: rgba(59,158,255,.12); color: var(--accent2); }
+.arch-backbone { border-color: var(--accent1); max-width: 560px; width: 100%; animation: pulseGlow 3s ease-in-out infinite; }
+.arch-backbone .box-title { color: var(--accent1); }
+.arch-backbone .box-tag { background: rgba(124,106,247,.12); color: var(--accent1); }
+@keyframes pulseGlow { 0%,100% { box-shadow: 0 0 8px rgba(124,106,247,.25); } 50% { box-shadow: 0 0 22px rgba(124,106,247,.6), 0 0 40px rgba(124,106,247,.18); } }
+.arch-heads { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.arch-head { flex: 1; min-width: 130px; max-width: 190px; }
+.arch-head-pitch  { border-color: var(--accent1); } .arch-head-pitch  .box-title { color: var(--accent1); }
+.arch-head-vad    { border-color: var(--accent2); } .arch-head-vad    .box-title { color: var(--accent2); }
+.arch-head-breath { border-color: var(--accent3); } .arch-head-breath .box-title { color: var(--accent3); }
+.arch-head-onset  { border-color: var(--accent4); } .arch-head-onset  .box-title { color: var(--accent4); }
+.arch-head-tech   { border-color: var(--red);     } .arch-head-tech   .box-title { color: var(--red); }
+.arch-viterbi { border-color: var(--green); max-width: 440px; width: 100%; }
+.arch-viterbi .box-title { color: var(--green); }
+.arch-viterbi .box-tag { background: rgba(34,197,94,.12); color: var(--green); }
+.arch-output { border-color: var(--yellow); max-width: 560px; width: 100%; }
+.arch-output .box-title { color: var(--yellow); }
+.arch-output .box-tag { background: rgba(249,199,79,.12); color: var(--yellow); }
+
+/* PARAM TABLE */
+.param-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+.param-table th { text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.param-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.86rem; vertical-align: top; opacity: 0; transform: translateX(-10px); transition: opacity .35s, transform .35s; }
+.param-table tr.revealed td { opacity: 1; transform: translateX(0); }
+.param-table td:first-child { font-weight: 600; }
+.param-table td:last-child { font-family: 'Fira Code', monospace; font-size: 0.8rem; color: var(--muted); }
+.param-table .total-row td { color: var(--highlight); font-weight: 700; border-top: 2px solid var(--border); }
+
+/* PIPELINE */
+.pipe-wrap { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; margin: 20px 0; }
+.pipe-stage { flex: 1; min-width: 120px; background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 12px; text-align: center; }
+.pipe-arrow { display: flex; align-items: center; padding: 0 4px; color: var(--muted); font-size: 1.1rem; flex-shrink: 0; }
+.pipe-stage .p-title { font-size: 0.8rem; font-weight: 700; margin-bottom: 6px; }
+.pipe-stage .p-detail { font-size: 0.72rem; color: var(--muted); font-family: 'Fira Code'; line-height: 1.55; }
+
+/* DATASET CARDS */
+.dataset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 14px; margin-top: 20px; }
+.ds-card { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; opacity: 0; transform: translateY(14px); transition: opacity .4s, transform .4s; }
+.ds-card.revealed { opacity: 1; transform: translateY(0); }
+.ds-card .ds-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 6px; }
+.ds-card .ds-desc { font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+.ds-card .ds-count { font-family: 'Fira Code', monospace; font-size: 0.82rem; color: var(--text); margin-bottom: 8px; }
+
+/* LOSS FORMULA */
+.loss-formula { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 20px 0; font-family: 'Fira Code', monospace; font-size: 0.86rem; line-height: 2; overflow-x: auto; }
+.lf-c1{color:var(--accent1)} .lf-c2{color:var(--accent2)} .lf-c3{color:var(--accent3)} .lf-c4{color:var(--accent4)} .lf-c5{color:var(--red)}
+
+/* METRIC BARS */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 12px; margin-top: 20px; }
+.metric-card { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.metric-name { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
+.metric-val { font-size: 1.5rem; font-weight: 800; font-family: 'Fira Code', monospace; margin-bottom: 8px; }
+.metric-bar-bg { background: var(--border); border-radius: 99px; height: 6px; overflow: hidden; }
+.metric-bar-fill { height: 100%; border-radius: 99px; width: 0; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+.metric-note { font-size: 0.73rem; color: var(--muted); margin-top: 7px; line-height: 1.45; }
+
+/* COMPARE TABLE */
+.cmp-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.86rem; }
+.cmp-table th { text-align: left; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.cmp-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.cmp-table td:first-child { font-weight: 600; font-family: 'Fira Code', monospace; }
+.cmp-table .winner { color: var(--green); font-weight: 700; }
+.cmp-table .loser  { color: var(--muted); }
+
+/* COACHING */
+.steps { display: flex; flex-direction: column; gap: 0; margin-top: 20px; }
+.step { display: flex; gap: 18px; padding: 18px 0; border-bottom: 1px solid var(--border); }
+.step:last-child { border-bottom: none; }
+.step-num { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.88rem; font-family: 'Fira Code', monospace; border: 2px solid var(--accent1); color: var(--accent1); }
+.step-body .step-title { font-weight: 700; margin-bottom: 5px; }
+.step-body .step-detail { font-size: 0.84rem; color: var(--muted); }
+.step-body code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-size: 0.82em; color: var(--accent3); }
+
+.score-formula { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 16px 0; font-family: 'Fira Code', monospace; font-size: 0.86rem; line-height: 2; }
+
+.tech-pills { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.tech-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 500; font-family: 'Fira Code', monospace; cursor: default; transition: transform .15s; }
+.tech-pill:hover { transform: scale(1.06); }
+
+.sample-result { background: var(--card2); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-top: 16px; }
+.sr-score { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.sr-score-num { font-size: 2.5rem; font-weight: 800; font-family: 'Fira Code', monospace; color: var(--yellow); }
+.sr-section-title { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin: 12px 0 7px; }
+.sr-item { display: flex; gap: 9px; align-items: flex-start; font-size: 0.84rem; margin-bottom: 7px; line-height: 1.5; }
+.sr-bullet { width: 7px; height: 7px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+
+/* SYSTEM FLOW */
+.flow-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 28px 0; }
+.flow-node { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; max-width: 580px; width: 100%; display: flex; align-items: flex-start; gap: 12px; opacity: 0; transform: translateY(8px); transition: opacity .4s, transform .4s, border-color .3s, box-shadow .3s; }
+.flow-node.revealed { opacity: 1; transform: translateY(0); }
+.flow-node.highlight { border-color: var(--accent1); box-shadow: 0 0 14px rgba(124,106,247,.25); }
+.flow-icon { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; }
+.flow-body .fn-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 3px; }
+.flow-body .fn-detail { font-size: 0.78rem; color: var(--muted); font-family: 'Fira Code', monospace; }
+.flow-arrow { display: flex; justify-content: center; align-items: center; height: 26px; width: 100%; max-width: 580px; }
+.flow-arrow svg { height: 26px; width: 36px; }
+.flow-dash { stroke-dasharray: 5 3; animation: flowDash .8s linear infinite; }
+@keyframes flowDash { to { stroke-dashoffset: -16; } }
+
+/* FILE TREE */
+.filetree { background: var(--card2); border: 1px solid var(--border); border-radius: 14px; padding: 22px 26px; margin-top: 20px; font-family: 'Fira Code', monospace; font-size: 0.8rem; line-height: 1.9; overflow-x: auto; }
+.ft-dir { color: var(--accent2); font-weight: 600; }
+.ft-file { color: var(--text); }
+.ft-cmt { color: var(--muted); }
+
+/* LIMITATIONS */
+.limit-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 12px; margin-top: 20px; }
+.limit-card { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 12px; padding: 16px 18px; }
+.limit-card .lc-title { font-weight: 700; color: #fca5a5; margin-bottom: 6px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+.limit-card .lc-body { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+
+/* NEXT STEPS */
+.next-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap: 12px; margin-top: 20px; }
+.next-card { background: rgba(34,197,94,.04); border: 1px solid rgba(34,197,94,.25); border-radius: 12px; padding: 16px 18px; }
+.next-card .nc-title { font-weight: 700; color: var(--green); margin-bottom: 6px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+.next-card .nc-body { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+
+/* MISC */
+.subhead { font-size: 0.95rem; font-weight: 700; color: var(--text); margin: 24px 0 12px; display: flex; align-items: center; gap: 8px; }
+.subhead::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 12px; margin-top: 16px; }
+.info-card { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.info-card .ic-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 5px; }
+.info-card .ic-val { font-size: 1rem; font-weight: 700; font-family: 'Fira Code', monospace; }
+.chart-wrap { background: var(--card2); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-top: 20px; }
+.chart-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 12px; }
+.split-vis { display: flex; gap: 14px; margin: 16px 0; flex-wrap: wrap; }
+.split-block { flex: 1; min-width: 100px; padding: 14px; background: var(--card2); border: 1px solid var(--border); border-radius: 12px; text-align: center; }
+.split-pct { font-size: 1.8rem; font-weight: 800; font-family: 'Fira Code', monospace; }
+.split-lbl { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-top: 3px; }
+.split-note { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+.fade-up { opacity: 0; transform: translateY(16px); transition: opacity .5s, transform .5s; }
+.fade-up.revealed { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="topnav">
+  <a href="#hero">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#features">Features</a>
+  <a href="#training">Training</a>
+  <a href="#evaluation">Results</a>
+  <a href="#coaching">Coaching</a>
+  <a href="#sysflow">System Flow</a>
+  <a href="#limitations">Limitations</a>
+  <a href="#nextsteps">Next Steps</a>
+  <a href="#directory">Files</a>
+  <div class="spacer"></div>
+  <button id="simplify-all" onclick="toggleAll()">⚡ Simplify All</button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-title">VocalStars ml_new</div>
+  <div class="hero-sub">Multi-task Singing Voice Analysis · Architecture · Training · Honest Results</div>
+  <div class="stat-row">
+    <div class="stat-pill"><span class="val" data-count="5">0</span><span class="lbl">Tasks</span></div>
+    <div class="stat-pill"><span class="val" data-count="180">0</span><span class="lbl">Pitch Bins</span></div>
+    <div class="stat-pill"><span class="val" data-count="260">0</span><span class="lbl">K Params</span></div>
+    <div class="stat-pill"><span class="val" data-count="70">0</span><span class="lbl">Epochs</span></div>
+    <div class="stat-pill"><span class="val" data-count="3">0</span><span class="lbl">Datasets</span></div>
+    <div class="stat-pill"><span class="val" data-count="87">0</span><span class="lbl">% Pitch Acc.</span></div>
+  </div>
+  <div class="tag-row" style="justify-content:center;margin-top:14px">
+    <span class="badge badge-purple">Causal / Streaming</span>
+    <span class="badge badge-blue">HCQT Features</span>
+    <span class="badge badge-teal">Multi-task Learning</span>
+    <span class="badge badge-orange">Viterbi Decoding</span>
+    <span class="badge badge-red">Technique: Work in Progress</span>
+  </div>
+  <div class="waveform" style="margin-top:28px">
+    <div class="wave-bar" style="animation-delay:.00s;height:18px"></div><div class="wave-bar" style="animation-delay:.10s;height:10px"></div>
+    <div class="wave-bar" style="animation-delay:.15s;height:28px"></div><div class="wave-bar" style="animation-delay:.05s;height:14px"></div>
+    <div class="wave-bar" style="animation-delay:.20s;height:34px"></div><div class="wave-bar" style="animation-delay:.12s;height:22px"></div>
+    <div class="wave-bar" style="animation-delay:.08s;height:16px"></div><div class="wave-bar" style="animation-delay:.18s;height:30px"></div>
+    <div class="wave-bar" style="animation-delay:.22s;height:20px"></div><div class="wave-bar" style="animation-delay:.03s;height:26px"></div>
+    <div class="wave-bar" style="animation-delay:.25s;height:12px"></div><div class="wave-bar" style="animation-delay:.14s;height:36px"></div>
+    <div class="wave-bar" style="animation-delay:.09s;height:24px"></div><div class="wave-bar" style="animation-delay:.19s;height:16px"></div>
+    <div class="wave-bar" style="animation-delay:.06s;height:30px"></div><div class="wave-bar" style="animation-delay:.23s;height:18px"></div>
+    <div class="wave-bar" style="animation-delay:.11s;height:32px"></div><div class="wave-bar" style="animation-delay:.17s;height:22px"></div>
+    <div class="wave-bar" style="animation-delay:.07s;height:14px"></div><div class="wave-bar" style="animation-delay:.21s;height:28px"></div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<span class="section-anchor" id="architecture"></span>
+<section class="section" data-section="architecture">
+  <div class="section-header">
+    <h2><span class="section-num">01 /</span> Architecture</h2>
+    <button class="eli5-btn" onclick="toggleELI5('architecture')"><span>🎤</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="arch-wrap">
+      <div class="arch-layer">
+        <div class="arch-box arch-input">
+          <div class="box-tag">Input</div>
+          <div class="box-title">Audio Input</div>
+          <div class="box-detail">16 kHz mono → HCQT(harmonics=6, n_bins=180, bins_per_oct=36, hop=160 samples = 10 ms)<br>+ VAD features: RMS · spectral flatness · ZCR (3 scalars per frame)</div>
+        </div>
+      </div>
+      <div class="arch-connector"><svg viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="50" y1="0" x2="50" y2="22" stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3"/><polygon points="44,20 50,30 56,20" fill="#2a2d3a"/></svg></div>
+      <div class="arch-layer">
+        <div class="arch-box arch-backbone">
+          <div class="box-tag">Shared Backbone</div>
+          <div class="box-title">UnifiedVocalModel Backbone</div>
+          <div class="box-detail">Harmonic fusion Conv1d(6→16→8→1) per freq-bin · LayerNorm<br>2-layer causal GRU (hidden=128) → <strong style="color:var(--accent1)">128-dim embeddings @ 10 ms/frame</strong></div>
+        </div>
+      </div>
+      <div class="arch-connector">
+        <svg viewBox="0 0 600 30" preserveAspectRatio="none" style="width:100%;max-width:680px">
+          <line x1="300" y1="0" x2="300" y2="15" stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="60" y1="15" x2="540" y2="15" stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="60"  y1="15" x2="60"  y2="30" stroke="#7c6af7" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="180" y1="15" x2="180" y2="30" stroke="#3b9eff" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="300" y1="15" x2="300" y2="30" stroke="#2dd4a0" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="420" y1="15" x2="420" y2="30" stroke="#f97316" stroke-width="2" stroke-dasharray="4 3"/>
+          <line x1="540" y1="15" x2="540" y2="30" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 3"/>
+        </svg>
+      </div>
+      <div class="arch-heads">
+        <div class="arch-box arch-head arch-head-pitch">
+          <div class="box-title">Pitch Head</div>
+          <div class="box-detail">Linear(128→180)<br>180-bin post.<br>33 ¢/bin<br>C1–C7 range</div>
+        </div>
+        <div class="arch-box arch-head arch-head-vad">
+          <div class="box-title">Voiced / VAD</div>
+          <div class="box-detail">Linear(131→1)<br>+ sigmoid<br>(128 + 3 VAD<br>features)</div>
+        </div>
+        <div class="arch-box arch-head arch-head-breath">
+          <div class="box-title">Breath Head</div>
+          <div class="box-detail">Linear(131→1)<br>+ sigmoid<br>(128 + 3 VAD<br>features)</div>
+        </div>
+        <div class="arch-box arch-head arch-head-onset">
+          <div class="box-title">Onset Head</div>
+          <div class="box-detail">Linear(128→64)<br>→ ReLU →<br>Linear(64→1)<br>+ sigmoid</div>
+        </div>
+        <div class="arch-box arch-head arch-head-tech" style="opacity:.55">
+          <div class="box-title">Technique ⚠️</div>
+          <div class="box-detail">MeanPool →<br>FC(128→64) →<br>Dropout(0.3) →<br>FC(64→20)<br><span style="color:var(--red)">~16% acc</span></div>
+        </div>
+      </div>
+      <div class="arch-connector"><svg viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="50" y1="0" x2="50" y2="22" stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3"/><polygon points="44,20 50,30 56,20" fill="#22c55e"/></svg></div>
+      <div class="arch-layer">
+        <div class="arch-box arch-viterbi">
+          <div class="box-tag">Post-processing</div>
+          <div class="box-title">Viterbi Decoder</div>
+          <div class="box-detail">181 states (180 voiced + 1 unvoiced) · ±5-bin Gaussian transitions · causal greedy variant for real-time</div>
+        </div>
+      </div>
+      <div class="arch-connector"><svg viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="50" y1="0" x2="50" y2="22" stroke="#2a2d3a" stroke-width="2" stroke-dasharray="4 3"/><polygon points="44,20 50,30 56,20" fill="#f9c74f"/></svg></div>
+      <div class="arch-layer">
+        <div class="arch-box arch-output">
+          <div class="box-tag">Output</div>
+          <div class="box-title">CoachingResult</div>
+          <div class="box-detail">pitch_hz[] · voiced[] · breath_frames[] · onset_frames[] · technique (unreliable — see §Limitations)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subhead">Parameter Breakdown</div>
+    <table class="param-table" id="param-table">
+      <thead><tr><th>Component</th><th>Type</th><th>Params</th><th>File</th></tr></thead>
+      <tbody>
+        <tr><td>Harmonic Fusion</td><td>Conv1d chain 6→16→8→1</td><td>~5K</td><td>unified_model.py</td></tr>
+        <tr><td>GRU Backbone</td><td>2-layer causal GRU (hidden=128)</td><td>~218K</td><td>unified_model.py</td></tr>
+        <tr><td>Pitch Head</td><td>Linear(128→180)</td><td>~23K</td><td>unified_model.py</td></tr>
+        <tr><td>Voiced / VAD Head</td><td>Linear(131→1) + sigmoid</td><td>~132</td><td>unified_model.py</td></tr>
+        <tr><td>Breath Head</td><td>Linear(131→1) + sigmoid</td><td>~132</td><td>unified_model.py</td></tr>
+        <tr><td>Onset Head</td><td>Linear(128→64) → Linear(64→1)</td><td>~8.3K</td><td>unified_model.py</td></tr>
+        <tr><td>Technique Head</td><td>MeanPool → FC(128→64) → FC(64→20)</td><td>~9.6K</td><td>unified_model.py</td></tr>
+        <tr class="total-row"><td>Total (verified)</td><td>UnifiedVocalModel</td><td>260,602</td><td>train_out.log</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>Five specialist coaches sharing the same pair of ears.</strong>
+      <br><br>
+      The <strong>backbone</strong> is the shared ears — it listens to your singing and produces 128 numbers every 10 milliseconds. Five specialists then look at those numbers simultaneously:
+      <ul style="margin:10px 0 10px 22px;line-height:2.2">
+        <li><strong style="color:#7c6af7">Pitch coach</strong> — which note are you singing?</li>
+        <li><strong style="color:#3b9eff">Voice detector</strong> — singing or silent?</li>
+        <li><strong style="color:#2dd4a0">Breath coach</strong> — is this a breath moment?</li>
+        <li><strong style="color:#f97316">Rhythm coach</strong> — is this the start of a new note?</li>
+        <li><strong style="color:#ef4444">Technique coach</strong> — belt, vibrato, falsetto…? <em>(not working well yet)</em></li>
+      </ul>
+      The whole model has <strong>260,602 numbers (parameters)</strong> to learn from data — compact enough to eventually run on a phone. After the heads give their answers, a <strong>Viterbi decoder</strong> smooths the pitch track so it doesn't jump erratically between frames.
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE EXTRACTION -->
+<span class="section-anchor" id="features"></span>
+<section class="section" data-section="features">
+  <div class="section-header">
+    <h2><span class="section-num">02 /</span> Feature Extraction</h2>
+    <button class="eli5-btn" onclick="toggleELI5('features')"><span>🎵</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="pipe-wrap">
+      <div class="pipe-stage"><div class="p-title" style="color:var(--accent2)">Raw Audio</div><div class="p-detail">16 kHz<br>mono float32<br>librosa.load</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage"><div class="p-title" style="color:var(--accent1)">HCQT</div><div class="p-detail">6 harmonics<br>180 bins<br>36 bins/oct<br>hop=160 (10ms)<br>FMIN=C1<br>33 ¢/bin</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage"><div class="p-title" style="color:var(--accent2)">VAD Features</div><div class="p-detail">RMS energy<br>Spectral flatness<br>Zero-crossing<br>rate<br>(3 scalars/frame)</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage"><div class="p-title" style="color:var(--accent3)">Breath Labels</div><div class="p-detail">pyin voiced<br>mask + amp<br>gap heuristics<br>(training only)</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage"><div class="p-title" style="color:var(--accent4)">Onset Labels</div><div class="p-detail">pyin voiced<br>mask edges<br>+ energy rise<br>(training only)</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage"><div class="p-title" style="color:var(--yellow)">Model Input</div><div class="p-detail">HCQT (6,180,T)<br>+ VAD (3,T)<br>→ 128-dim<br>per frame</div></div>
+    </div>
+
+    <div class="subhead">HCQT Specification</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="ic-label">Sample Rate</div><div class="ic-val">16,000 Hz</div></div>
+      <div class="info-card"><div class="ic-label">Harmonics</div><div class="ic-val">6 (h×f₀)</div></div>
+      <div class="info-card"><div class="ic-label">Pitch Bins</div><div class="ic-val">180 (5 octaves)</div></div>
+      <div class="info-card"><div class="ic-label">Bins / Octave</div><div class="ic-val">36 → 33 ¢/bin</div></div>
+      <div class="info-card"><div class="ic-label">FMIN</div><div class="ic-val">C1 = 32.7 Hz</div></div>
+      <div class="info-card"><div class="ic-label">Hop Length</div><div class="ic-val">160 samp = 10 ms</div></div>
+    </div>
+
+    <div class="subhead">HCQT vs Log-Mel — Motivation (Not Yet Ablated)</div>
+    <div class="note-box">
+      <strong>This comparison has not been formally run yet.</strong> It is on the roadmap for next week.
+      <br><br>
+      <strong>Why we chose HCQT:</strong> Standard log-mel spectrograms mix harmonics together and are not pitch-equivariant — the same note sung by a tenor vs soprano produces a different log-mel pattern. HCQT stacks 6 copies of the CQT at harmonic frequencies (h×f₀), so the harmonic pattern appears at the same bin offset regardless of the fundamental. This makes pitch patterns <em>translation-invariant</em> in the frequency axis, giving the GRU structured pitch information rather than raw filter bank energies.
+      <br><br>
+      <strong>What we know from the old ml/ module:</strong> The predecessor used a 40-band log-mel spectrogram. ml_new switched to HCQT as the first architectural change. Whether this actually improved accuracy over log-mel on the same data is <strong>not yet measured</strong>.
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>We slice your singing into 10-millisecond snapshots — 100 per second.</strong>
+      <br><br>
+      For each snapshot we compute the <strong>HCQT</strong>: imagine a piano keyboard equalizer, but instead of one bar per key you stack 6 copies — one for the fundamental note, and one each for its overtones. This lets the AI recognise the same note pattern regardless of whether you're a bass or a soprano.
+      <br><br>
+      We also measure three simple "is-this-a-breath" signals: loudness, how spread out the energy is (flatness), and how quickly the wave crosses zero. Breath is quiet, airy, and noisy — singing is louder and more tonal.
+      <br><br>
+      <em>Note: We haven't actually tested whether HCQT is better than the simpler approach (log-mel) yet — that comparison is next week's work.</em>
+    </div>
+  </div>
+</section>
+
+<!-- TRAINING -->
+<span class="section-anchor" id="training"></span>
+<section class="section" data-section="training">
+  <div class="section-header">
+    <h2><span class="section-num">03 /</span> Training</h2>
+    <button class="eli5-btn" onclick="toggleELI5('training')"><span>📚</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="subhead">Datasets Used (3)</div>
+    <div class="note-box" style="margin-bottom:16px"><strong>Only 3 datasets were actually extracted and trained on.</strong> GTSinger and VocalSet for the unified model; PopBuTFy added for the pitch-only (pitch_hires) model.</div>
+    <div class="dataset-grid" id="ds-grid">
+      <div class="ds-card">
+        <div class="ds-name" style="color:var(--accent1)">GTSinger</div>
+        <div class="ds-desc">Multi-language singing with phoneme alignments and 20+ vocal techniques</div>
+        <div class="ds-count">6,892 clips (English subset used)</div>
+        <div class="tag-row"><span class="badge badge-purple">technique-labeled</span><span class="badge badge-teal">pitch-labeled</span></div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-name" style="color:var(--accent2)">VocalSet</div>
+        <div class="ds-desc">20 professional opera singers, 10 vocal techniques each</div>
+        <div class="ds-count">3,613 clips</div>
+        <div class="tag-row"><span class="badge badge-blue">multi-singer</span><span class="badge badge-purple">technique-labeled</span></div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-name" style="color:var(--accent3)">PopBuTFy</div>
+        <div class="ds-desc">Pop music separated vocals (used for pitch_hires model only, not unified)</div>
+        <div class="ds-count">28,965 clips</div>
+        <div class="tag-row"><span class="badge badge-teal">pitch-only</span><span class="badge badge-yellow">pitch_hires model</span></div>
+      </div>
+    </div>
+
+    <div class="subhead">Singer-Aware Data Split</div>
+    <div class="split-vis">
+      <div class="split-block"><div class="split-pct" style="color:var(--accent1)">80%</div><div class="split-lbl">Train</div><div class="split-note">7,260 clips</div></div>
+      <div class="split-block"><div class="split-pct" style="color:var(--accent2)">10%</div><div class="split-lbl">Validation</div><div class="split-note">2,779 clips</div></div>
+      <div class="split-block"><div class="split-pct" style="color:var(--green)">10%</div><div class="split-lbl">Test</div><div class="split-note">Held out</div></div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--muted);margin-top:8px">🔒 Singer IDs are exclusive per split — the model cannot memorize a specific voice.</p>
+
+    <div class="subhead">Optimizer &amp; Schedule</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="ic-label">Optimizer</div><div class="ic-val">AdamW</div></div>
+      <div class="info-card"><div class="ic-label">Peak LR</div><div class="ic-val">1e-3</div></div>
+      <div class="info-card"><div class="ic-label">LR Schedule</div><div class="ic-val">CosineAnnealing</div></div>
+      <div class="info-card"><div class="ic-label">Warmup Steps</div><div class="ic-val">500</div></div>
+      <div class="info-card"><div class="ic-label">Epochs</div><div class="ic-val">70</div></div>
+      <div class="info-card"><div class="ic-label">Batch Size</div><div class="ic-val">32</div></div>
+      <div class="info-card"><div class="ic-label">Gradient Clip</div><div class="ic-val">max_norm=1.0</div></div>
+      <div class="info-card"><div class="ic-label">Precision</div><div class="ic-val">AMP (float16)</div></div>
+    </div>
+
+    <div class="subhead">Multi-Task Loss</div>
+    <div class="loss-formula">
+      <div>L<sub>total</sub> = <span class="lf-c1">1.0 × L<sub>pitch</sub></span> + <span class="lf-c2">0.6 × L<sub>voiced</sub></span> + <span class="lf-c3">0.9 × L<sub>breath</sub></span> + <span class="lf-c4">0.9 × L<sub>onset</sub></span> + <span class="lf-c5">0.4 × L<sub>tech</sub></span></div>
+      <br>
+      <div style="color:var(--muted);font-size:0.78rem;line-height:2">
+        <span class="lf-c1">L<sub>pitch</sub></span>  — Gaussian soft-label CE on voiced frames only (σ=1 bin ≈ 33 ¢)<br>
+        <span class="lf-c2">L<sub>voiced</sub></span> — Focal BCE (γ=2, pos_weight=2)<br>
+        <span class="lf-c3">L<sub>breath</sub></span> — Focal BCE (γ=3, <strong style="color:var(--accent3)">pos_weight=15</strong>) — rare class, penalize misses heavily<br>
+        <span class="lf-c4">L<sub>onset</sub></span>  — Focal BCE (γ=3, <strong style="color:var(--accent4)">pos_weight=12</strong>) — rare + noisy labels<br>
+        <span class="lf-c5">L<sub>tech</sub></span>   — Weighted CE (inverse-freq class weights) — <strong style="color:var(--red)">effectively not learning</strong>
+      </div>
+    </div>
+
+    <div class="subhead">Training Curve</div>
+    <div class="chart-wrap">
+      <div class="chart-title">Train Loss · RPA · Composite — 70 Epochs</div>
+      <canvas id="trainChart" style="max-height:250px"></canvas>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>Teaching from 3 singing libraries, across 70 rounds of practice.</strong>
+      <br><br>
+      We used <strong>3 datasets</strong>: opera singers from VocalSet (3,613 recordings), multi-technique singing from GTSinger (6,892 recordings), and pop music from PopBuTFy (28,965 recordings — though this one only trained the pitch detector, not the full model).
+      <br><br>
+      We carefully kept different singers in different buckets so the model learns to generalise, not just memorise a known voice.
+      <br><br>
+      We penalised missing a breath or note onset much more heavily than a false alarm — because in coaching, silently missing a real problem is worse than mentioning one too many.
+    </div>
+  </div>
+</section>
+
+<!-- EVALUATION -->
+<span class="section-anchor" id="evaluation"></span>
+<section class="section" data-section="evaluation">
+  <div class="section-header">
+    <h2><span class="section-num">04 /</span> Evaluation Results</h2>
+    <button class="eli5-btn" onclick="toggleELI5('evaluation')"><span>📊</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <p style="color:var(--muted);font-size:0.86rem;margin-bottom:16px">Held-out test set · Epoch 70 checkpoint · <code>ml_new/checkpoints/unified/best.pt</code></p>
+
+    <div class="metric-grid" id="metric-grid">
+      <div class="metric-card">
+        <div class="metric-name">RPA · Raw Pitch Accuracy</div>
+        <div class="metric-val" style="color:var(--accent1)">87.3%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="87.3" style="background:var(--accent1)"></div></div>
+        <div class="metric-note">Voiced frames within ±50 cents of ground truth</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">RCA · Raw Chroma Accuracy</div>
+        <div class="metric-val" style="color:var(--accent5)">87.4%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="87.4" style="background:var(--accent5)"></div></div>
+        <div class="metric-note">Octave-invariant pitch accuracy</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">VAD F1</div>
+        <div class="metric-val" style="color:var(--accent2)">95.9%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="95.9" style="background:var(--accent2)"></div></div>
+        <div class="metric-note">F1 on voiced / unvoiced detection</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Breath Recall</div>
+        <div class="metric-val" style="color:var(--accent3)">99.0%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="99.0" style="background:var(--accent3)"></div></div>
+        <div class="metric-note">Recall-tuned (pos_weight=15). Breath F1 is ~3.5% due to class imbalance — intentional design choice</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Onset Recall</div>
+        <div class="metric-val" style="color:var(--accent4)">93.6%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="93.6" style="background:var(--accent4)"></div></div>
+        <div class="metric-note">Same recall-first trade-off as breath. Onset F1 ~5.6%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Median Pitch Error</div>
+        <div class="metric-val" style="color:var(--yellow)">13.3 ¢</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="87" style="background:var(--yellow)"></div></div>
+        <div class="metric-note">13.3 cents ≈ 0.13 semitones — sub-semitone precision</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Technique Accuracy ⚠️</div>
+        <div class="metric-val" style="color:var(--red)">16.0%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="16" style="background:var(--red)"></div></div>
+        <div class="metric-note">20 classes · random baseline = 5% · barely learning · <strong>needs redesign</strong></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Composite Score</div>
+        <div class="metric-val" style="color:var(--green)">88.7%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill" data-fill="88.7" style="background:var(--green)"></div></div>
+        <div class="metric-note">0.4×RPA + 0.3×onset_F1 + 0.3×breath_recall — does not include technique</div>
+      </div>
+    </div>
+
+    <div class="subhead">Argmax vs Viterbi vs Weighted-Mean (pitch_hires model)</div>
+    <div class="note-box">Separate pitch-only model (<code>pitch_hires/best.pt</code>) trained on all 3 datasets including PopBuTFy. Evaluated on merged manifest.</div>
+    <table class="cmp-table">
+      <thead><tr><th>Decoder</th><th>RPA</th><th>RCA</th><th>Median Cents</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Argmax</td><td class="winner">93.1%</td><td class="winner">93.9%</td><td class="loser">11.2 ¢</td><td style="color:var(--muted);font-size:0.82rem">Best RPA/RCA</td></tr>
+        <tr><td>Weighted Mean</td><td class="loser">89.9%</td><td class="loser">90.2%</td><td class="winner">7.1 ¢</td><td style="color:var(--muted);font-size:0.82rem">Best median error</td></tr>
+        <tr><td>Viterbi</td><td class="loser">89.1%</td><td class="loser">90.7%</td><td class="loser">11.6 ¢</td><td style="color:var(--muted);font-size:0.82rem">Worse than argmax on RPA</td></tr>
+      </tbody>
+    </table>
+    <div class="warn-box" style="margin-top:14px">
+      <strong>Viterbi did not beat argmax on RPA.</strong> Argmax (93.1%) outperforms Viterbi (89.1%) on raw pitch accuracy. Viterbi's smoothing over-penalises rapid pitch changes. The Viterbi transition parameters need tuning before it justifies the added complexity. For now, <strong>argmax is the better practical decoder</strong>, and weighted-mean is better if median cents error matters more than RPA.
+    </div>
+
+    <div class="subhead">Composite Score Progression</div>
+    <div class="chart-wrap">
+      <div class="chart-title">Composite Score — Epochs 1→70 (0.799 → 0.887)</div>
+      <canvas id="scoreChart" style="max-height:200px"></canvas>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>The model's report card — tested on recordings it had never heard before.</strong>
+      <ul style="margin:12px 0 12px 22px;line-height:2.2">
+        <li><strong>87.3% pitch accuracy</strong> — right note within a quarter-tone, 87 out of 100 frames</li>
+        <li><strong>95.9% voice detection</strong> — knows when you're singing vs silent, 96% of the time</li>
+        <li><strong>99% breath detection</strong> — almost never misses a breath you take</li>
+        <li><strong>93.6% onset detection</strong> — catches the start of nearly every note</li>
+        <li><strong style="color:var(--red)">16% technique classification</strong> — barely works. For 20 style categories (belt, vibrato, etc.) random guessing would get 5%. We're at 16% — learning something, but not usable</li>
+      </ul>
+      Interesting finding: a simpler "argmax" approach actually outperformed the fancier "Viterbi" decoder on pitch accuracy. The Viterbi needs more tuning.
+    </div>
+  </div>
+</section>
+
+<!-- COACHING ENGINE -->
+<span class="section-anchor" id="coaching"></span>
+<section class="section" data-section="coaching">
+  <div class="section-header">
+    <h2><span class="section-num">05 /</span> Coaching Engine</h2>
+    <button class="eli5-btn" onclick="toggleELI5('coaching')"><span>🏋️</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Audio → HCQT + VAD Features</div><div class="step-detail">librosa.load (16 kHz mono) → <code>HCQTExtractor</code> (6×180×T) + <code>VADFeatureExtractor</code> (3×T)</div></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">UnifiedVocalModel Forward Pass</div><div class="step-detail">HCQT → harmonic fusion → LayerNorm → 2-layer causal GRU → 128-dim per frame. Five heads run in parallel: pitch (T×180), voiced (T), breath (T), onset (T), technique (20)</div></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Pitch Decoding (currently argmax)</div><div class="step-detail"><code>argmax(pitch_logits)</code> per frame → pitch_hz array. Viterbi available but under-performs — see Results §</div></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Note Segmentation</div><div class="step-detail"><code>segment_notes(pitch_hz, voiced)</code> in <code>algorithms.py</code> — groups voiced frames into <code>NoteSegment</code> objects with times, median Hz, stability, vibrato flag</div></div></div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Voice Quality via PRAAT</div><div class="step-detail"><code>extract_voice_quality(audio, sr)</code> via <code>parselmouth</code> — HNR (dB), jitter (%), shimmer (%). DSP post-processing, not neural</div></div></div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><div class="step-title">Score + Feedback Assembly</div><div class="step-detail"><code>analyse_recording()</code> → <code>CoachingResult</code>: score 0–100, summary, issues[], exercises[]. Technique label included but flagged as low-confidence</div></div></div>
+    </div>
+
+    <div class="subhead">Score Formula</div>
+    <div class="score-formula">
+      <div><span style="color:var(--yellow)">score</span> = <span style="color:var(--accent1)">pitch_accuracy</span> × 50</div>
+      <div style="padding-left:54px">+ <span style="color:var(--accent3)">voice_quality_score</span> × 20</div>
+      <div style="padding-left:54px">+ <span style="color:var(--accent4)">onset_clarity</span> × 15</div>
+      <div style="padding-left:54px">+ <span style="color:var(--accent2)">phrase_support</span> × 15</div>
+    </div>
+
+    <div class="subhead">Technique Vocabulary (20 Classes — currently unreliable)</div>
+    <div class="warn-box">Technique classification accuracy is ~16% (20-class; random = 5%). The technique label from inference should not be trusted for presentation-grade coaching until redesigned. See Limitations §.</div>
+    <div class="tech-pills">
+      <span class="tech-pill badge-purple">belt</span><span class="tech-pill badge-blue">breathy</span><span class="tech-pill badge-teal">fast_forte</span><span class="tech-pill badge-orange">fast_piano</span><span class="tech-pill badge-pink">forte</span><span class="tech-pill badge-green">glissando</span><span class="tech-pill badge-purple">inhaled</span><span class="tech-pill badge-blue">lip_trill</span><span class="tech-pill badge-teal">messa</span><span class="tech-pill badge-orange">mixed_voice_and_falsetto</span><span class="tech-pill badge-pink">pharyngeal</span><span class="tech-pill badge-green">pp</span><span class="tech-pill badge-purple">slow_forte</span><span class="tech-pill badge-blue">slow_piano</span><span class="tech-pill badge-teal">spoken</span><span class="tech-pill badge-orange">straight</span><span class="tech-pill badge-pink">trill</span><span class="tech-pill badge-green">trillo</span><span class="tech-pill badge-purple">vibrato</span><span class="tech-pill badge-yellow">vocal_fry</span>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>Think of the coaching engine as a GPS for your voice.</strong>
+      <br><br>
+      It figures out where you are (pitch accuracy, breath support, note clarity), compares to where you want to be, and gives you a route — specific exercises to close the gap.
+      <br><br>
+      The score formula weighs <strong>pitch (50%)</strong> most heavily, then voice quality from PRAAT tools (20%), note-start clarity (15%), and breath support (15%).
+      <br><br>
+      One important caveat: the <strong>technique label</strong> (belt, vibrato, etc.) is not reliable yet — it's only right about 16% of the time. We're treating it as a rough hint, not a diagnosis.
+    </div>
+  </div>
+</section>
+
+<!-- SYSTEM FLOW -->
+<span class="section-anchor" id="sysflow"></span>
+<section class="section" data-section="sysflow">
+  <div class="section-header">
+    <h2><span class="section-num">06 /</span> System Flow</h2>
+    <button class="eli5-btn" onclick="toggleELI5('sysflow')"><span>🔗</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:24px">From browser microphone to coaching feedback — end-to-end.</p>
+    <div class="flow-wrap" id="flow-wrap">
+      <div class="flow-node" data-delay="0"><div class="flow-icon" style="background:rgba(59,158,255,.12);color:var(--accent2)">🎙️</div><div class="flow-body"><div class="fn-title">StudioView.tsx — Browser</div><div class="fn-detail">MediaRecorder WebM/Opus · live autocorrelation pitch on SVG canvas</div></div></div>
+      <div class="flow-arrow"><svg viewBox="0 0 36 26"><line class="flow-dash" x1="18" y1="0" x2="18" y2="18" stroke="var(--muted)" stroke-width="1.5"/><polygon points="12,16 18,26 24,16" fill="var(--muted)"/></svg></div>
+      <div class="flow-node" data-delay="1"><div class="flow-icon" style="background:rgba(124,106,247,.12);color:var(--accent1)">📡</div><div class="flow-body"><div class="fn-title">POST /api/audio/analyze-with-ml</div><div class="fn-detail">multipart/form-data → FastAPI :8000</div></div></div>
+      <div class="flow-arrow"><svg viewBox="0 0 36 26"><line class="flow-dash" x1="18" y1="0" x2="18" y2="18" stroke="var(--muted)" stroke-width="1.5"/><polygon points="12,16 18,26 24,16" fill="var(--muted)"/></svg></div>
+      <div class="flow-node" data-delay="2"><div class="flow-icon" style="background:rgba(249,115,22,.12);color:var(--accent4)">⚡</div><div class="flow-body"><div class="fn-title">FastAPI — audio_processing.py → ml_inference.py</div><div class="fn-detail">Saves temp file → MLInferenceService → analyse_recording()</div></div></div>
+      <div class="flow-arrow"><svg viewBox="0 0 36 26"><line class="flow-dash" x1="18" y1="0" x2="18" y2="18" stroke="var(--muted)" stroke-width="1.5"/><polygon points="12,16 18,26 24,16" fill="var(--muted)"/></svg></div>
+      <div class="flow-node" data-delay="3"><div class="flow-icon" style="background:rgba(124,106,247,.12);color:var(--accent1)">🧠</div><div class="flow-body"><div class="fn-title">ml_new/inference/coach_inference.py</div><div class="fn-detail">HCQT → UnifiedVocalModel → argmax decode → segment_notes() → PRAAT voice quality</div></div></div>
+      <div class="flow-arrow"><svg viewBox="0 0 36 26"><line class="flow-dash" x1="18" y1="0" x2="18" y2="18" stroke="var(--muted)" stroke-width="1.5"/><polygon points="12,16 18,26 24,16" fill="var(--muted)"/></svg></div>
+      <div class="flow-node" data-delay="4"><div class="flow-icon" style="background:rgba(34,197,94,.12);color:var(--green)">📱</div><div class="flow-body"><div class="fn-title">ResultsView.tsx — Score + ML Coaching</div><div class="fn-detail">SVG score ring · issues list · exercises · optional Gemini AI notes</div></div></div>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>The journey from microphone to coaching in 5 steps:</strong>
+      <ol style="margin:10px 0 10px 22px;line-height:2.2">
+        <li>You press <strong>Record</strong>. The browser shows your live pitch on screen using a simple algorithm.</li>
+        <li>You press <strong>Stop</strong>. The audio is packaged into a file and sent to a Python server.</li>
+        <li>The server feeds it into the <strong>neural network</strong>, which analyses it frame by frame.</li>
+        <li>The server sends back a report card: score, issues, and exercises.</li>
+        <li>The app displays it. Optionally, Google's Gemini AI adds professional coaching language.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- LIMITATIONS -->
+<span class="section-anchor" id="limitations"></span>
+<section class="section" data-section="limitations">
+  <div class="section-header">
+    <h2><span class="section-num">07 /</span> What This Can't Do Yet</h2>
+    <button class="eli5-btn" onclick="toggleELI5('limitations')"><span>⚠️</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="limit-grid">
+      <div class="limit-card">
+        <div class="lc-title">❌ Technique Classification</div>
+        <div class="lc-body">16% accuracy for 20 classes. Random guessing = 5%. The model learns a weak signal but cannot reliably distinguish belt from breathy, or vibrato from straight. Root cause: heavy class imbalance (some techniques have &lt;50 training clips), noisy labels from two datasets with overlapping vocabularies, and the technique head architecture is too shallow to capture long-term stylistic patterns from a 2-second window.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-title">❌ HCQT vs Log-Mel Not Measured</div>
+        <div class="lc-body">We chose HCQT over the predecessor's log-mel spectrogram for theoretical reasons (harmonic translation invariance). Whether it actually improves accuracy on this dataset has not been formally tested. A log-mel baseline experiment is on the roadmap for next week.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-title">⚠️ Viterbi Needs Tuning</div>
+        <div class="lc-body">Viterbi RPA (89.1%) is worse than argmax RPA (93.1%). The transition penalty is too aggressive for fast-moving pitch content like melisma and glissando. Transition sigma and voicing penalty need re-calibration before Viterbi is worth the extra compute.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-title">⚠️ Limited Dataset Diversity</div>
+        <div class="lc-body">Trained on GTSinger (English multi-technique), VocalSet (opera), and PopBuTFy (pop). Not validated on: children's voices, elderly singers, non-Western scales, extreme falsetto, or very noisy/reverberant environments. Generalisation to these conditions is unknown.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-title">⚠️ Mobile Export Not Done</div>
+        <div class="lc-body">The PyTorch model has not been exported to ONNX or TFLite yet. Latency on mobile hardware is unmeasured. The 260K parameter count suggests it should be feasible, but INT8 quantisation and edge benchmarking are still pending.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-title">⚠️ Streaming Not End-to-End Tested</div>
+        <div class="lc-body">The backbone uses causal convolutions and a causal GRU, so streaming is architecturally supported. However, streaming inference has not been tested end-to-end against the file-based path. Buffering, state management, and latency under real network conditions are unverified.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>What the model honestly cannot do yet:</strong>
+      <ul style="margin:10px 0 10px 22px;line-height:2.2">
+        <li><strong style="color:var(--red)">Recognise singing style</strong> — it tries to detect belt, vibrato, falsetto etc. but is right only 16% of the time. It's barely better than guessing randomly.</li>
+        <li><strong style="color:var(--red)">Proven HCQT advantage</strong> — we believe HCQT features are better, but haven't actually run the experiment yet to prove it.</li>
+        <li><strong style="color:#fbbf24)">Smooth pitch tracking</strong> — the Viterbi smoother we built actually makes accuracy <em>worse</em> right now. We're using the simpler approach instead while we tune it.</li>
+        <li><strong style="color:#fbbf24">Run on a phone</strong> — it hasn't been converted to mobile format yet. The size looks promising, but it's untested.</li>
+        <li><strong style="color:#fbbf24">Generalise to all voices</strong> — not tested on children, elderly singers, or non-Western music styles.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- NEXT STEPS -->
+<span class="section-anchor" id="nextsteps"></span>
+<section class="section" data-section="nextsteps">
+  <div class="section-header">
+    <h2><span class="section-num">08 /</span> Next Week</h2>
+    <button class="eli5-btn" onclick="toggleELI5('nextsteps')"><span>🗓️</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="next-grid">
+      <div class="next-card">
+        <div class="nc-title">🔬 HCQT vs Log-Mel Ablation</div>
+        <div class="nc-body">
+          Train a parallel model with identical architecture but log-mel features (n_mels=40, same hop) as input instead of HCQT. Compare RPA, RCA, median_cents, and training convergence speed on the same GTSinger + VocalSet split.
+          <br><br>
+          <strong>Expected outcome:</strong> quantify whether the HCQT's theoretical harmonic-invariance advantage translates to measurable RPA gain on this specific dataset.
+        </div>
+      </div>
+      <div class="next-card">
+        <div class="nc-title">🔧 Fix Technique Classification</div>
+        <div class="nc-body">
+          Current 16% accuracy is not usable. Planned approaches:
+          <ul style="margin:8px 0 0 18px;line-height:1.9;font-size:0.81rem">
+            <li>Audit class distribution — identify severely underrepresented techniques and balance or merge</li>
+            <li>Use a longer input window (from 2 s to 5–8 s) — technique is a long-term feature</li>
+            <li>Decouple from unified model: train a separate AcousticTechniqueClassifier on MFCC + spectral features rather than GRU embeddings</li>
+            <li>Consider reducing to fewer, better-defined classes (e.g. 6–8 broad categories vs 20 fine-grained ones)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>Two main tasks for next week:</strong>
+      <br><br>
+      <ol style="margin:10px 0 10px 22px;line-height:2.2">
+        <li><strong>Run the HCQT vs Log-Mel experiment.</strong> Train the same model but with a simpler audio representation, and compare the scores. This will either confirm that HCQT was worth the extra complexity, or reveal we could have done just as well with something simpler.</li>
+        <li><strong>Fix the technique classifier.</strong> 16% for 20 styles is not good enough. The plan is to use longer audio clips (the model currently only sees 2 seconds — not enough to judge singing style), and possibly reduce the number of categories to make the task more learnable.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- FILE DIRECTORY -->
+<span class="section-anchor" id="directory"></span>
+<section class="section" data-section="directory">
+  <div class="section-header">
+    <h2><span class="section-num">09 /</span> File Directory</h2>
+    <button class="eli5-btn" onclick="toggleELI5('directory')"><span>📁</span> Simplify</button>
+  </div>
+
+  <div class="tech-text">
+    <div class="filetree">
+<span class="ft-dir">ml_new/</span>
+├── <span class="ft-dir">models/</span>
+│   ├── <span class="ft-file">unified_model.py</span>          <span class="ft-cmt">←  UnifiedVocalModel · 260K params · 5 heads on shared GRU backbone</span>
+│   ├── <span class="ft-file">pitch_model.py</span>            <span class="ft-cmt">←  Standalone pitch model (used in pitch_hires experiments)</span>
+│   ├── <span class="ft-file">viterbi.py</span>                <span class="ft-cmt">←  pitch_viterbi() · 181-state HMM · ⚠️ under-performs argmax on RPA</span>
+│   ├── <span class="ft-file">onset_model.py</span>            <span class="ft-cmt">←  OnsetModel head</span>
+│   ├── <span class="ft-file">breath_model.py</span>           <span class="ft-cmt">←  BreathModel head</span>
+│   ├── <span class="ft-file">vad_model.py</span>              <span class="ft-cmt">←  VADModel head</span>
+│   └── <span class="ft-file">acoustic_technique.py</span>     <span class="ft-cmt">←  AcousticTechniqueClassifier · ⚠️ ~16% acc · needs redesign</span>
+│
+├── <span class="ft-dir">feature_extraction/</span>
+│   ├── <span class="ft-file">hcqt.py</span>                   <span class="ft-cmt">←  HCQTExtractor · 6 harmonics · 180 bins · 33 ¢/bin</span>
+│   ├── <span class="ft-file">vad_features.py</span>           <span class="ft-cmt">←  RMS · spectral flatness · ZCR (3 features fed to voiced/breath heads)</span>
+│   ├── <span class="ft-file">breath_labels.py</span>          <span class="ft-cmt">←  derive_breath_labels() from pyin voiced mask</span>
+│   └── <span class="ft-file">onset_labels.py</span>           <span class="ft-cmt">←  derive_onset_labels() from voiced mask edges</span>
+│
+├── <span class="ft-dir">training/</span>
+│   ├── <span class="ft-file">train_unified.py</span>          <span class="ft-cmt">←  Multi-task loop · 70 epochs · GTSinger + VocalSet · 260K params</span>
+│   ├── <span class="ft-file">train_pitch.py</span>            <span class="ft-cmt">←  Pitch-only training</span>
+│   ├── <span class="ft-file">evaluate_pitch.py</span>         <span class="ft-cmt">←  Argmax vs Viterbi vs weighted-mean comparison</span>
+│   ├── <span class="ft-file">evaluate_coaching.py</span>      <span class="ft-cmt">←  End-to-end coaching eval</span>
+│   ├── <span class="ft-file">finetune_technique.py</span>     <span class="ft-cmt">←  Technique head fine-tuning (results: ~16% — insufficient)</span>
+│   └── <span class="ft-file">run_all.sh</span>                <span class="ft-cmt">←  Full pipeline: pitch → vad → breath → onset → unified</span>
+│
+├── <span class="ft-dir">inference/</span>
+│   ├── <span class="ft-file">coach_inference.py</span>        <span class="ft-cmt">←  analyse_recording() · public API · returns CoachingResult</span>
+│   └── <span class="ft-file">algorithms.py</span>             <span class="ft-cmt">←  segment_notes · extract_voice_quality (PRAAT) · vibrato</span>
+│
+├── <span class="ft-dir">data/</span>
+│   ├── <span class="ft-file">unified_dataset.py</span>        <span class="ft-cmt">←  UnifiedDataset · loads GTSinger + VocalSet + PopBuTFy</span>
+│   ├── <span class="ft-file">extract_all.py</span>            <span class="ft-cmt">←  HCQT + VAD feature extraction runner</span>
+│   ├── <span class="ft-file">extracted_pyin/</span>           <span class="ft-cmt">←  GTSinger (6,892) + VocalSet (3,613) NPZ files</span>
+│   └── <span class="ft-file">extracted_merged/</span>         <span class="ft-cmt">←  + PopBuTFy (28,965) — used by pitch_hires only</span>
+│
+├── <span class="ft-dir">checkpoints/</span>
+│   ├── <span class="ft-dir">unified/</span>              <span class="ft-cmt">←  best.pt · train_log.csv (70 ep) · RPA 87.3%</span>
+│   ├── <span class="ft-dir">pitch_hires/</span>          <span class="ft-cmt">←  best.pt · RPA 93.1% argmax · 3-dataset training</span>
+│   └── <span class="ft-dir">vad/ breath/ onset/</span>   <span class="ft-cmt">←  Individual task checkpoints</span>
+│
+└── <span class="ft-file">results_dashboard.html</span>    <span class="ft-cmt">←  Training curves visualizer (open in browser)</span>
+    </div>
+  </div>
+
+  <div class="simple-text">
+    <div class="eli5-box">
+      <strong>What each folder does:</strong>
+      <ul style="margin:10px 0 10px 22px;line-height:2.2">
+        <li><strong>models/</strong> — The neural network itself. One file per "coach head" plus the shared backbone.</li>
+        <li><strong>feature_extraction/</strong> — Converts raw audio into the numbers the model understands.</li>
+        <li><strong>training/</strong> — Scripts that teach the model from the datasets and track its progress.</li>
+        <li><strong>inference/</strong> — The actual coaching session. Hand it an audio file, get a score and exercises.</li>
+        <li><strong>data/</strong> — 3 singing datasets, pre-processed into fast NPZ files.</li>
+        <li><strong>checkpoints/</strong> — Saved model states. Two key ones: <em>unified/</em> (full 5-task model, 87.3% pitch) and <em>pitch_hires/</em> (pitch-only, 93.1%).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer style="text-align:center;padding:36px 20px;border-top:1px solid var(--border);color:var(--muted);font-size:0.8rem">
+  VocalStars ml_new · Drexel University · 2024–2025
+  <span style="margin:0 10px">·</span>
+  260K params · 70 epochs · 87.3% RPA (unified) · 93.1% RPA (pitch_hires)
+  <span style="margin:0 10px">·</span>
+  <a href="results_dashboard.html" style="color:var(--accent1);text-decoration:none">Training Dashboard →</a>
+</footer>
+
+<script>
+// Training data
+const EPOCHS = Array.from({length:70},(_,i)=>i+1);
+const TRAIN_LOSS = [3.777,2.281,2.038,1.935,1.849,1.789,1.739,1.710,1.685,1.665,1.642,1.615,1.607,1.583,1.579,1.569,1.554,1.552,1.543,1.529,1.526,1.509,1.511,1.498,1.495,1.479,1.484,1.466,1.471,1.447,1.457,1.455,1.437,1.435,1.432,1.418,1.423,1.413,1.418,1.411,1.408,1.406,1.400,1.399,1.394,1.371,1.384,1.385,1.373,1.368,1.363,1.359,1.363,1.350,1.358,1.343,1.348,1.355,1.351,1.345,1.343,1.342,1.341,1.347,1.344,1.340,1.339,1.338,1.333,1.333];
+const COMPOSITE = [0.799,0.808,0.825,0.828,0.835,0.852,0.858,0.851,0.862,0.865,0.853,0.855,0.861,0.871,0.872,0.873,0.874,0.875,0.875,0.871,0.879,0.872,0.877,0.875,0.874,0.882,0.879,0.878,0.880,0.879,0.879,0.877,0.875,0.880,0.874,0.873,0.876,0.880,0.880,0.885,0.884,0.883,0.886,0.886,0.886,0.887,0.886,0.880,0.884,0.882,0.889,0.885,0.881,0.887,0.884,0.884,0.884,0.885,0.883,0.886,0.885,0.883,0.887,0.888,0.889,0.884,0.886,0.887,0.886,0.887];
+const RPA = [0.608,0.692,0.721,0.729,0.744,0.792,0.792,0.767,0.791,0.817,0.804,0.799,0.813,0.834,0.838,0.846,0.845,0.845,0.854,0.844,0.868,0.856,0.858,0.852,0.845,0.861,0.861,0.860,0.860,0.862,0.860,0.855,0.853,0.858,0.849,0.850,0.850,0.864,0.866,0.867,0.864,0.871,0.866,0.872,0.876,0.874,0.869,0.865,0.869,0.876,0.874,0.872,0.874,0.873,0.873,0.871,0.872,0.872,0.874,0.875,0.873,0.872,0.873,0.873,0.875,0.872,0.874,0.873,0.871,0.873];
+const TECH = [0.279,0.116,0.138,0.135,0.123,0.116,0.119,0.140,0.145,0.122,0.115,0.123,0.124,0.126,0.121,0.124,0.124,0.130,0.125,0.137,0.136,0.122,0.132,0.136,0.133,0.137,0.138,0.126,0.137,0.134,0.139,0.146,0.130,0.136,0.145,0.142,0.144,0.147,0.149,0.153,0.149,0.148,0.157,0.152,0.140,0.158,0.163,0.151,0.152,0.138,0.159,0.149,0.148,0.167,0.146,0.157,0.148,0.157,0.149,0.154,0.157,0.155,0.158,0.164,0.162,0.156,0.167,0.154,0.159,0.160];
+
+// ELI5
+function toggleELI5(id) {
+  const s = document.querySelector(`[data-section="${id}"]`);
+  if (!s) return;
+  s.classList.toggle('eli5-active');
+  const btn = s.querySelector('.eli5-btn');
+  if (btn) btn.classList.toggle('active');
+}
+let allSimp = false;
+function toggleAll() {
+  allSimp = !allSimp;
+  document.querySelectorAll('.section[data-section]').forEach(s => {
+    const btn = s.querySelector('.eli5-btn');
+    if (allSimp) { s.classList.add('eli5-active'); if(btn) btn.classList.add('active'); }
+    else { s.classList.remove('eli5-active'); if(btn) btn.classList.remove('active'); }
+  });
+  const g = document.getElementById('simplify-all');
+  if (g) { g.textContent = allSimp ? '🔬 Go Technical' : '⚡ Simplify All'; g.classList.toggle('active', allSimp); }
+}
+
+// Nav active
+const navLinks = document.querySelectorAll('#topnav a');
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + id));
+    }
+  });
+}, { rootMargin: '-25% 0px -70% 0px' }).observe.call(
+  new IntersectionObserver(()=>{}),
+);
+// Fix: proper nav observer
+const sectionAnchors = document.querySelectorAll('.section-anchor');
+const navObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id));
+  });
+}, { rootMargin: '-25% 0px -70% 0px' });
+sectionAnchors.forEach(a => navObs.observe(a));
+
+// CountUp
+function countUp(el, target, dur=1100) {
+  const start = performance.now();
+  (function frame(now) {
+    const p = Math.min((now-start)/dur, 1);
+    el.textContent = Math.round((1-(1-p)**3)*target);
+    if (p < 1) requestAnimationFrame(frame);
+  })(performance.now());
+}
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      document.querySelectorAll('[data-count]').forEach(el => countUp(el, +el.dataset.count));
+    }
+  });
+}, { threshold: 0.3 }).observe(document.getElementById('hero'));
+
+// Param table
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.querySelectorAll('tbody tr').forEach((r,i) => setTimeout(() => r.classList.add('revealed'), i*80));
+  });
+}, { threshold: 0.2 }).observe(document.getElementById('param-table'));
+
+// Dataset cards
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.querySelectorAll('.ds-card').forEach((c,i) => setTimeout(() => c.classList.add('revealed'), i*80));
+  });
+}, { threshold: 0.1 }).observe(document.getElementById('ds-grid'));
+
+// Metric bars
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.querySelectorAll('.metric-bar-fill').forEach(b => setTimeout(() => { b.style.width = b.dataset.fill + '%'; }, 200));
+  });
+}, { threshold: 0.2 }).observe(document.getElementById('metric-grid'));
+
+// Flow nodes
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.querySelectorAll('.flow-node').forEach(n => {
+      const d = (+n.dataset.delay) * 380;
+      setTimeout(() => { n.classList.add('revealed'); setTimeout(() => n.classList.add('highlight'), 80); setTimeout(() => n.classList.remove('highlight'), 750); }, d);
+    });
+  });
+}, { threshold: 0.1 }).observe(document.getElementById('flow-wrap'));
+
+// Chart defaults
+const CD = {
+  responsive: true, maintainAspectRatio: true,
+  plugins: { legend: { labels: { color: '#7b7f99', font: { size: 11 } } }, tooltip: { backgroundColor: '#1a1d27', titleColor: '#e2e4ef', bodyColor: '#7b7f99' } },
+  scales: { x: { ticks: { color: '#7b7f99', font: { size: 10 }, maxTicksLimit: 14 }, grid: { color: '#2a2d3a' } }, y: { ticks: { color: '#7b7f99', font: { size: 10 } }, grid: { color: '#2a2d3a' } } }
+};
+
+// Training chart
+const tc = document.getElementById('trainChart');
+if (tc) new Chart(tc, {
+  type: 'line',
+  data: {
+    labels: EPOCHS,
+    datasets: [
+      { label: 'Train Loss', data: TRAIN_LOSS, borderColor: '#e879a0', backgroundColor: 'rgba(232,121,160,.07)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.3, yAxisID: 'yL' },
+      { label: 'RPA %',     data: RPA.map(v=>+(v*100).toFixed(1)), borderColor: '#7c6af7', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yP' },
+      { label: 'Composite %', data: COMPOSITE.map(v=>+(v*100).toFixed(1)), borderColor:'#22c55e', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yP' },
+      { label: 'Tech Acc %', data: TECH.map(v=>+(v*100).toFixed(1)), borderColor:'#ef4444', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yP', borderDash:[4,3] }
+    ]
+  },
+  options: { ...CD,
+    scales: {
+      x: { ...CD.scales.x },
+      yL: { type:'linear', position:'left', ticks:{color:'#e879a0',font:{size:10}}, grid:{color:'#2a2d3a'}, title:{display:true,text:'Loss',color:'#7b7f99',font:{size:10}} },
+      yP: { type:'linear', position:'right', min:0, max:100, ticks:{color:'#7b7f99',font:{size:10},callback:v=>v+'%'}, grid:{drawOnChartArea:false}, title:{display:true,text:'Accuracy %',color:'#7b7f99',font:{size:10}} }
+    }
+  }
+});
+
+// Score chart
+const sc = document.getElementById('scoreChart');
+if (sc) new Chart(sc, {
+  type: 'line',
+  data: {
+    labels: EPOCHS,
+    datasets: [{ label: 'Composite %', data: COMPOSITE.map(v=>+(v*100).toFixed(2)), borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.09)', borderWidth:2.5, pointRadius:0, fill:true, tension:0.4 }]
+  },
+  options: { ...CD,
+    scales: {
+      x: { ...CD.scales.x },
+      y: { min:78, max:92, ticks:{color:'#7b7f99',font:{size:10},callback:v=>v.toFixed(0)+'%'}, grid:{color:'#2a2d3a'} }
+    }
+  }
+});
+</script>
+</body>
+</html>

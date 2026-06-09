@@ -1,38 +1,73 @@
 import { motion } from "motion/react";
-import { 
-  Play, 
-  Wind, 
-  Activity, 
-  TrendingUp, 
-  Sparkle, 
-  ChevronRight, 
+import {
+  Play,
+  Wind,
+  Activity,
+  TrendingUp,
+  Sparkle,
+  ChevronRight,
   Music,
-  User, 
-  CheckCircle2
+  User,
+  CheckCircle2,
+  Target,
+  Waves,
+  Mic,
+  Lock,
 } from "lucide-react";
-import { Song, Exercise } from "../types";
-import { SONGS, EXERCISES } from "../utils/musicDb";
+import { Song, Exercise, PracticePreset } from "../types";
+import { SONGS, EXERCISES, PRACTICE_PRESETS } from "../utils/musicDb";
+import { LEARNING_STEPS, useLearningPath } from "../utils/learningPath";
+import { useHumanReferencePresets } from "../hooks/useHumanReferencePresets";
 
 interface DashboardViewProps {
   onSelectSong: (song: Song) => void;
+  onStartPracticePreset?: (preset: PracticePreset) => void;
   onActiveWarmup: (exercise: Exercise) => void;
+  onQuickStart?: () => void;
   searchQuery: string;
 }
 
-export default function DashboardView({ 
-  onSelectSong, 
+export default function DashboardView({
+  onSelectSong,
+  onStartPracticePreset,
   onActiveWarmup,
-  searchQuery 
+  onQuickStart,
+  searchQuery
 }: DashboardViewProps) {
   
+  const { completed: pathCompleted, nextStep } = useLearningPath();
+
+  // Fetch human reference presets from the catalog API.
+  // These replace hardcoded synthetic entries for sustained_note / vibrato / pitch_slide.
+  const { presets: humanPresets, loading: humanPresetsLoading } = useHumanReferencePresets(
+    ["sustained_note", "vibrato", "pitch_slide"],
+    8,
+  );
+
+  // Merge: human reference presets first (they carry real F0 vectors), then
+  // retain static presets for exercise types NOT covered by the catalog
+  // (scale, interval, breath_control, free singing).
+  const STATIC_FALLBACK_TYPES = new Set(["scale", "interval", "free", "song"]);
+  const staticOnlyPresets = PRACTICE_PRESETS.filter(
+    (p) => STATIC_FALLBACK_TYPES.has(p.category) || p.source !== "dataset_reference" && p.source !== "generated_reference",
+  );
+  const allPresets: PracticePreset[] = humanPresets.length
+    ? [...humanPresets, ...staticOnlyPresets]
+    : PRACTICE_PRESETS;
+
   // Filter songs based on search
-  const filteredSongs = SONGS.filter(song => 
+  const filteredSongs = SONGS.filter(song =>
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
     song.genre.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const featuredSong = SONGS.find(s => s.featured) || SONGS[0];
+  const filteredPracticePresets = allPresets.filter((preset) =>
+    preset.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    preset.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    preset.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const getExerciseIcon = (type: string) => {
     switch (type) {
@@ -54,42 +89,143 @@ export default function DashboardView({
   return (
     <div className="space-y-12 animate-fade-in">
       
-      {/* 1. Featured Song block */}
-      <section className="relative rounded-[32px] overflow-hidden group h-[520px] cursor-pointer shadow-lg border border-white/5">
+      {/* Learning path progression strip */}
+      <section className="glass-card rounded-2xl p-5 border border-white/5">
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="font-display font-bold text-lg text-white">Your Practice Path</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {pathCompleted.size === 0
+                ? "Start at step 1 and work through each skill in order."
+                : pathCompleted.size >= LEARNING_STEPS.length
+                ? "All steps complete — keep exploring more exercises below."
+                : `${pathCompleted.size} of ${LEARNING_STEPS.length} steps done.`}
+            </p>
+          </div>
+          {nextStep && (
+            <button
+              onClick={() => onStartPracticePreset?.(nextStep.preset)}
+              className="flex-shrink-0 px-4 py-2 rounded-xl bg-tertiary/15 border border-tertiary/25 text-tertiary text-xs font-bold hover:bg-tertiary/20 transition-all"
+            >
+              Start Next
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {(() => {
+            // Compute once, not inside the map
+            const nextStepIndex = nextStep
+              ? LEARNING_STEPS.findIndex((s) => s.presetId === nextStep.presetId)
+              : LEARNING_STEPS.length; // all done → no locked steps
+            return LEARNING_STEPS.map((step, index) => {
+            const done = pathCompleted.has(step.presetId);
+            const isNext = nextStep?.presetId === step.presetId;
+            const locked = !done && !isNext && index > nextStepIndex;
+            return (
+              <button
+                key={step.presetId}
+                onClick={() => !locked && onStartPracticePreset?.(step.preset)}
+                disabled={locked}
+                title={locked ? "Complete the previous step first" : step.preset.description}
+                className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl border text-center min-w-[88px] transition-all ${
+                  done
+                    ? "bg-tertiary/10 border-tertiary/25 text-tertiary"
+                    : isNext
+                    ? "bg-primary/10 border-primary/35 text-primary ring-1 ring-primary/30"
+                    : "bg-white/3 border-white/8 text-on-surface-variant/50 cursor-not-allowed"
+                }`}
+              >
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border border-current/30">
+                  {done ? <CheckCircle2 className="w-4 h-4" /> : locked ? <Lock className="w-3 h-3" /> : index + 1}
+                </span>
+                <span className="text-[10px] font-bold leading-tight">{step.milestone}</span>
+              </button>
+            );
+            });
+          })()}
+        </div>
+      </section>
+
+      {/* 1. Human vocal practice block */}
+      <section className="relative rounded-[32px] overflow-hidden shadow-lg border border-white/5 bg-surface-container/60 p-6 md:p-8">
         <img 
-          alt="Featured Background" 
-          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjF0HjXlfhqx_tY3aaxi46xoYrmN5jYLTj5vjQej8B4-bLiLn82wQLj9cvgHni7pEpWz9TOvqgGjXc4bGb9XVOgUtzlfiDX0nVW6sSqSpKFd67cu6qtQdZ5tzbpNdyN8ngdgPdQlb26YVXqPZJgD0IUS-PETbPGg2A_8jvaMrnfXFBBl1qluy4pg_gya-2_HoBVNCugnEKAxD7qGk0_AasjS-6vHqVr9lG_Eq9RVi9dGO9nz9lYJqurlE3RIzajQ22b39_0hTrYcV_"
+          alt="Singer practicing into a microphone" 
+          className="absolute inset-0 w-full h-full object-cover opacity-30" 
+          src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=1600&auto=format&fit=crop&q=80"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background"></div>
-        
-        {/* Ambient neon flares inside image container */}
-        <div className="absolute top-24 left-1/4 w-72 h-72 rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-12 right-1/4 w-72 h-72 rounded-full bg-secondary/20 blur-[100px] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/30" />
 
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 md:p-12 space-y-6 z-10">
-          <span className="px-5 py-1.5 rounded-full bg-tertiary text-on-tertiary font-semibold tracking-widest text-[11px] uppercase shadow-[0_0_20px_rgba(60,221,199,0.3)] animate-pulse">
-            SONG OF THE DAY
-          </span>
-          <h1 className="font-display font-extrabold text-white text-4xl md:text-6xl drop-shadow-2xl transition-all duration-500 group-hover:scale-[1.02]">
-            {featuredSong.title}
-          </h1>
-          <p class="font-body-lg text-on-surface-variant max-w-2xl text-xl leading-relaxed">Unleash your soulful depth with this synth-heavy masterpiece. Perfect for mastering mid-range control and expressive vibrato.</p>
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <button 
-              onClick={() => onSelectSong(featuredSong)}
-              className="flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-secondary to-primary text-on-primary text-sm font-bold hover:scale-105 hover:brightness-110 hover:shadow-[0_0_25px_rgba(255,177,192,0.6)] active:scale-95 transition-all duration-300 glow-pink"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Start Practice
-            </button>
-            <button 
-              onClick={() => onSelectSong(featuredSong)}
-              className="px-8 py-3.5 rounded-full bg-white/5 backdrop-blur-md border border-white/10 text-sm font-bold hover:bg-white/15 hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-300"
-            >
-              Preview Track
-            </button>
+        <div className="relative z-10 grid lg:grid-cols-12 gap-8 items-center min-h-[500px]">
+          <div className="lg:col-span-5 space-y-5">
+            <span className="inline-flex px-4 py-1.5 rounded-full bg-tertiary text-on-tertiary font-semibold tracking-widest text-[11px] uppercase shadow-[0_0_20px_rgba(60,221,199,0.18)]">
+              Guided human vocal practice
+            </span>
+            <h1 className="font-display font-extrabold text-white text-4xl md:text-6xl drop-shadow-2xl">
+              Train notes your voice actually sings
+            </h1>
+            <p className="text-on-surface-variant max-w-2xl text-lg leading-relaxed">
+              Start with singer-first drills: sustained vowels, note matching, glides, scale fragments, and simple reference melodies.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => onStartPracticePreset?.(
+                  humanPresets.find(p => p.category === "pitch") ?? allPresets[0]
+                )}
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-secondary to-primary text-on-primary text-sm font-bold hover:scale-105 hover:brightness-110 hover:shadow-[0_0_25px_rgba(255,177,192,0.45)] active:scale-95 transition-all duration-300 glow-pink"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                Start Sustained Note
+              </button>
+              {onQuickStart && (
+                <button
+                  onClick={onQuickStart}
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full border border-white/20 bg-white/5 text-white text-sm font-bold hover:bg-white/10 hover:border-white/35 active:scale-95 transition-all duration-200"
+                >
+                  <Mic className="w-4 h-4" />
+                  Quick Record
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="lg:col-span-7 grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {humanPresetsLoading && !humanPresets.length && (
+              <div className="col-span-full text-center text-on-surface-variant text-xs py-4 opacity-60">
+                Loading human reference exercises…
+              </div>
+            )}
+            {filteredPracticePresets.slice(0, 8).map((preset) => {
+              const Icon = preset.category === "slide" ? Waves : preset.category === "song" ? Music : Target;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => onStartPracticePreset?.(preset)}
+                  className="text-left rounded-2xl border border-white/10 bg-background/45 hover:bg-background/65 hover:border-primary/30 transition-all p-5"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display font-bold text-lg text-white">{preset.title}</h3>
+                        <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 text-on-surface-variant">
+                          {preset.duration}
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant leading-relaxed mt-1">
+                        {preset.description}
+                      </p>
+                      <p className="text-[10px] text-tertiary uppercase tracking-wider font-bold mt-3">
+                        {preset.source.replaceAll("_", " ")}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -1,38 +1,281 @@
-# VocalStars
+# VocalStars — AI Vocal Coach
 
-VocalStars is an AI-powered beginner vocal coaching application designed for supportive, technical improvement rather than scoring or judging. It helps beginner singers identify measurable voice patterns, understand actionable coaching feedback, and track progress over time.
+**Team:** Uddhav Jain · Xin Liu · Stefan · Ush  
+**GitHub:** https://github.com/xlz1047/VocalStars  
+**Demo video:** *(link TBD — recording in progress)*
 
-## Architecture
+---
 
-- `frontend/` — Next.js + TypeScript + Tailwind user interface
-- `backend/` — FastAPI REST API, modular services, database integration
-- `ml/` — Python audio and ML pipeline with feature extraction placeholders
-- `shared/` — Common schemas and cross-platform types
-- `docs/` — Architecture, API contract, setup guidance
+## What It Does
 
-## Key features
+VocalStars is an AI vocal coaching app for beginner singers. A user records or uploads a short
+audio clip; the system analyzes pitch accuracy, breath control, and vocal technique, then returns
+actionable coaching feedback alongside visualizations (pitch lane, issue markers, coaching cards).
 
-- Audio recording and file upload flow
-- Analysis routing for pitch, rhythm, breath, and vocal stability
-- Coaching recommendations engine skeleton
-- Progress tracking starter schema
-- Docker-based local development
+Target user: casual singer (shower / car). No musical training required.
 
-## Getting Started
+---
 
-1. Install dependencies for frontend and backend.
-2. Copy `.env.example` to `.env` and configure your PostgreSQL connection.
-3. Start services with Docker Compose.
+## System Overview
 
-## Local development
+![Architecture diagram](docs/architecture.svg)
 
-- Frontend: `cd frontend && npm install && npm run dev`
-- Backend: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
+Full pipeline detail: [docs/ai-coach/ARCHITECTURE.md](docs/ai-coach/ARCHITECTURE.md)
 
-## Roadmap
+### Pipeline stages
 
-- Add end-to-end audio feature extraction and model training
-- Implement user authentication and session history
-- Build interactive progress charts and coaching timelines
-- Extend coaching engine with sample exercises
-- Add tests and CI linting workflows
+| Stage | What happens |
+|-------|-------------|
+| **Data** | GTSinger, VocalSet, PopBuTFy — pitch (pyin), VAD, onset, breath, technique labels |
+| **Preprocessing** | 16 kHz mono · 4096-sample frames · HCQT features (6 harmonics, 360 bins) |
+| **Model** | UnifiedVocalModel (HCQT+GRU, ~256K params) + NanoPitch guard (332K params) + pyin DSP |
+| **Post-processing** | Hybrid f0/VAD decision · task-aware evaluators · f0 smoothing · note segmentation |
+| **Feedback** | Pitch lane · coaching cards · exercise suggestions → Vite/React frontend |
+| **Specs** | CPU only · offline · ~0.1 s inference per 5 s clip · FastAPI backend |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11
+- Node.js 18+
+- (Optional) Docker + Docker Compose for the full stack
+
+### 1 — Backend (FastAPI)
+
+```bash
+cd backend
+
+# Create and activate a virtual environment (required — system Python has no packages)
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -r requirements-ml.txt   # ML dependencies (torch, librosa, etc.)
+
+# Configure environment and start the server
+cp ../.env.example ../.env           # configure DATABASE_URL if needed
+uvicorn app.main:app --reload
+```
+
+> **Note:** always activate the venv (`source .venv/bin/activate`) before running any backend command. You should see `(.venv)` in your prompt when it is active.
+
+The API runs at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+
+### 2 — Frontend (Vite + React)
+
+```bash
+cd new_frontend
+npm install
+npm run dev
+```
+
+Frontend runs at `http://localhost:5173`.
+
+### 3 — End-to-end with Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Then open `http://localhost:5173` in your browser.
+
+---
+
+## Getting the Data
+
+All runtime assets (model weights, reference vectors, melodies, manifests, and test samples) are hosted on Hugging Face at **[punumbed/vocalstars-data](https://huggingface.co/datasets/punumbed/vocalstars-data)**.
+
+After cloning, run:
+
+```bash
+pip install huggingface_hub
+python scripts/download_data.py
+```
+
+This downloads ~95 MB and places everything at the paths the app already expects — no other configuration needed.
+
+> **Teammates:** add `HF_TOKEN=<your_token>` to your `.env` if you hit rate limits (see `.env.example`).  
+> **Re-uploading:** `python scripts/upload_to_hf.py` (requires a write-access HF token in `.env`).
+
+---
+
+## Model Weights
+
+Weights are included in the HF dataset above and also committed directly to `weights/` in this repo.
+
+| File | Model | Role |
+|------|-------|------|
+| `weights/model_a_unified.pt` | UnifiedVocalModel (HCQT+GRU) | Primary: pitch, VAD, onset, breath, technique |
+| `weights/nanopitch_best.pth` | NanoPitch (CNN posterior) | Conservative noise/silence guard |
+
+If running inference from a fresh clone, copy weights to their expected paths:
+```bash
+cp weights/model_a_unified.pt ml_new/checkpoints/unified/best.pt
+cp weights/nanopitch_best.pth ml_3/NanoPitch/training/runs/expD_mixed_cosine/checkpoints/best.pth
+```
+
+---
+
+## Data
+
+### Runtime reference data (pre-computed — download via script above)
+
+| Asset | Location | Description |
+|-------|----------|-------------|
+| Reference vectors | `data/reference_catalog/vectors/` | 5196 pre-computed pitch vectors derived from VocalSet, MIR-1K, GTSinger |
+| Reference index | `data/reference_catalog/index.json` | Catalog of all reference entries with metadata |
+| Reference melodies | `data/reference_melodies/` | Built-in beginner melody pack (JSON + MIDI) |
+| Manifests | `data/manifests/` | Processed and raw dataset manifests |
+
+### Datasets used for training (obtain separately — not included in HF repo)
+
+| Dataset | Purpose | Download |
+|---------|---------|----------|
+| [GTSinger](https://github.com/GTSinger/GTSinger) | Melody + technique labels | HuggingFace Hub |
+| [VocalSet](https://zenodo.org/record/1203819) | Vocal technique recordings | Zenodo |
+| [PopBuTFy](https://github.com/PopBuTFy/PopBuTFy) | Pop vocal stems | See repo |
+| MIR-1K (eval only) | Frame-level f0 / voicing ground truth | [MIR-1K](https://sites.google.com/site/unvoicedsoundseparation/mir-1k) |
+
+### Preprocessing
+
+Labels are extracted offline using `librosa.pyin` for f0 and voiced probability. Scripts:
+
+```bash
+# Build unified dataset manifest
+python ml_new/data/unified_dataset.py
+
+# (Optional) Download and prepare datasets
+# See docs/ai-coach/DATASET_DOWNLOADS.md for per-dataset instructions
+```
+
+Preprocessed features are cached to `ml_new/data/extracted_hires/` (gitignored — regenerate locally).
+
+---
+
+## Sample Inputs / Outputs
+
+Ready-to-use test audio in `samples/`:
+
+| File | Type | Description |
+|------|------|-------------|
+| `samples/00_silence.wav` | Non-singing | Fan/background noise |
+| `samples/01_speaking_voice.wav` | Non-singing | Spoken voice (should be blocked) |
+| `samples/03_sustained_aaa.wav` | Singing | Sustained vowel |
+| `samples/04_pitch_slide.wav` | Singing | Pitch glide up |
+| `samples/05_twinkle_twinkle.wav` | Singing | Free melody |
+| `samples/synthetic_model_tests/sine_220hz_5s.wav` | Synthetic | Pure 220 Hz sine |
+| `samples/online_test_clips/` | Reference | CC0 / CC-BY-SA licensed clips |
+
+### Quick inference test
+
+```bash
+cd backend
+python -c "
+from app.services.ml_inference import run_inference
+result = run_inference('../samples/03_sustained_aaa.wav', task='sustained_note')
+print(result)
+"
+```
+
+---
+
+## Evaluation
+
+Key results are in [docs/EVALUATION_RESULTS.md](docs/EVALUATION_RESULTS.md).
+
+**TL;DR:**
+
+- **0% false-voiced rate** on silence/noise (NanoPitch guard)
+- **0 pitch jumps** on real singing with pyin f0 source
+- **5/5** P4 behavioral regression checks pass
+- NanoPitch inference: 0.08–0.15 s per 5 s clip on CPU
+
+### Run the regression suite
+
+```bash
+# Requires ml/.venv — see ml/README.md or install ml requirements
+ml/.venv/bin/python scripts/eval/check_regression_expectations.py
+```
+
+### Run model comparison (all three sources on real samples)
+
+```bash
+ml/.venv/bin/python scripts/eval/compare_baseline_outputs.py
+```
+
+---
+
+## Repository Structure
+
+```
+VocalStars/
+├── backend/          # FastAPI REST API
+│   ├── app/
+│   │   ├── api/routers/   # audio_processing, coaching, live_analysis, reference
+│   │   ├── services/      # ml_inference, ui_ready_response, audio_processing
+│   │   └── main.py
+│   ├── requirements.txt
+│   └── requirements-ml.txt
+├── ml_new/           # Primary ML module (Model A — UnifiedVocalModel)
+│   ├── checkpoints/unified/best.pt        # ← committed weights
+│   ├── checkpoints/unified_tech/best.pt   # ← committed weights
+│   ├── inference/coach_inference.py       # main inference entry point
+│   ├── training/train_unified.py          # training script
+│   ├── data/unified_dataset.py            # dataset pipeline
+│   └── model_vg/, model_c/               # alternative model experiments
+├── ml_3/NanoPitch/   # NanoPitch model (conservative VAD / noise guard)
+│   ├── training/runs/expD_mixed_cosine/checkpoints/best.pth  # ← committed weights
+│   └── training/, deployment/
+├── ml/               # Original modular ML pipeline (pitch, rhythm, breath, coaching)
+│   └── pipeline.py                        # imported by backend audio_processing
+├── new_frontend/     # Vite + React + TypeScript frontend
+│   └── src/components/   # PitchLane, ResultsView, StudioView, DashboardView, …
+├── scripts/
+│   ├── download_data.py   # pull runtime assets from HuggingFace (run after clone)
+│   ├── upload_to_hf.py    # re-upload assets to HuggingFace (maintainers only)
+│   ├── data/         # reference index and manifest builders
+│   └── eval/         # evaluation harnesses (compare_baseline, check_regression, …)
+├── docs/
+│   ├── architecture.svg          # system overview diagram
+│   ├── EVALUATION_RESULTS.md     # consolidated metrics
+│   ├── ai-coach/ARCHITECTURE.md  # detailed architecture doc
+│   └── reports/                  # H/M/N evaluation reports
+├── samples/          # test audio (self-recorded + CC-licensed reference)
+├── data/             # reference melodies, manifests
+├── docker-compose.yml
+└── .env.example
+```
+
+---
+
+## Backup Demo Video
+
+*(Video will be linked here once recorded. The demo shows: audio upload → analysis → pitch lane + coaching feedback display.)*
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env`. Required variables:
+
+```
+DATABASE_URL=sqlite:///./vocalstars.db   # or PostgreSQL URL
+SECRET_KEY=<random string>
+```
+
+---
+
+## Running Tests
+
+```bash
+# Backend tests
+cd backend && pytest
+
+# ML regression suite
+ml/.venv/bin/python scripts/eval/check_regression_expectations.py
+```

@@ -1,76 +1,101 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { 
-  RotateCcw, 
-  ArrowLeft, 
-  Award, 
-  Sparkles, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  RotateCcw,
+  ArrowLeft,
+  Award,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
   Info,
   Layers,
   Activity,
   ChevronRight,
   TrendingUp,
   Wind,
-  Music
+  Music,
+  Loader
 } from "lucide-react";
-import { PerformanceResult, CoachingNote } from "../types";
+import { PerformanceResult, TaskConfig } from "../types";
+import InvalidInputState from "./InvalidInputState";
+import RecordingPlaybackControls from "./RecordingPlaybackControls";
+import UiReadyResultView from "./UiReadyResultView";
 
 interface ResultsViewProps {
   result: PerformanceResult;
-  onRetake: () => void;
+  recordingUrl?: string | null;
+  recordingLabel?: string | null;
+  onOpenReview: () => void;
+  onTryAgainSameTask?: () => void;
+  onBackToTaskSetup?: () => void;
+  onPracticeTask?: (taskConfig: TaskConfig, presetId?: string) => void;
   onBackToDashboard: () => void;
+}
+
+const INVALID_INPUT_TYPES = new Set(["no_voice_or_noise", "speech_like_or_non_singing", "low_confidence_or_unreliable"]);
+
+function isInvalidOrUnavailable(result: PerformanceResult): boolean {
+  const inputType = result.uiReadyAnalysis?.analysis_validity?.input_type;
+  return Boolean(result.analysisUnavailable || (inputType && INVALID_INPUT_TYPES.has(inputType)));
 }
 
 export default function ResultsView({ 
   result, 
-  onRetake, 
+  recordingUrl,
+  recordingLabel,
+  onOpenReview, 
+  onTryAgainSameTask,
+  onBackToTaskSetup,
+  onPracticeTask,
   onBackToDashboard 
 }: ResultsViewProps) {
-  const [coachingNotes, setCoachingNotes] = useState<CoachingNote[]>(result.coachingNotes);
+  const uiReadyAnalysis = result.uiReadyAnalysis;
+  const invalidInput = isInvalidOrUnavailable(result);
+  const safeUiReadyAnalysis = uiReadyAnalysis && !invalidInput ? uiReadyAnalysis : undefined;
+  const [geminiNotes, setGeminiNotes] = useState<PerformanceResult["coachingNotes"] | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [aiApiKeyMissing, setAiApiKeyMissing] = useState(false);
+  const [geminiAvailable, setGeminiAvailable] = useState<boolean | null>(null);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
 
-  // Trigger server-side AI feedback generation
+  // Check once on mount whether the Gemini API key is configured
   useEffect(() => {
-    async function generateAIFeedback() {
-      setIsLoadingAI(true);
-      try {
-        const response = await fetch("/api/coaching-feedback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            songTitle: result.songTitle,
-            artist: result.artist,
-            score: result.overallScore,
-            intonation: result.intonation,
-            rhythm: result.rhythm,
-            timbre: result.timbre,
-            dynamics: result.dynamics
-          })
-        });
+    fetch("/api/coaching-status")
+      .then(r => r.json())
+      .then(d => setGeminiAvailable(d.available))
+      .catch(() => setGeminiAvailable(false));
+  }, []);
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.coachingNotes && data.coachingNotes.length > 0) {
-            setCoachingNotes(data.coachingNotes);
-          }
-        } else {
-          const text = await response.text();
-          if (text.includes("GEMINI_API_KEY")) {
-            setAiApiKeyMissing(true);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not retrieve AI notes from Express endpoint, falling back to cached database reports.", err);
-      } finally {
-        setIsLoadingAI(false);
+  async function handleGetAICoaching() {
+    setIsLoadingAI(true);
+    setGeminiError(null);
+    try {
+      const response = await fetch("/api/coaching-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          songTitle: result.songTitle,
+          artist: result.artist,
+          score: result.overallScore,
+          intonation: result.intonation,
+          rhythm: result.rhythm,
+          timbre: result.timbre,
+          dynamics: result.dynamics,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setGeminiError(data.error || "AI coaching failed");
+        return;
       }
+      if (data.coachingNotes?.length > 0) {
+        setGeminiNotes(data.coachingNotes);
+      }
+    } catch (err: any) {
+      setGeminiError(err.message || "Network error");
+    } finally {
+      setIsLoadingAI(false);
     }
-
-    generateAIFeedback();
-  }, [result]);
+  }
 
   // Circumference calculation for SVG score ring (Radius 110 => Circumference roughly 691.15)
   const radius = 110;
@@ -81,7 +106,7 @@ export default function ResultsView({
     switch (label) {
       case "Intonation": return "STABILITY & TONALITY (40% WEIGHT)";
       case "Rhythm": return "TEMPORAL PRECISION & OFFSET NOTES (25% WEIGHT)";
-      case "Timbre": return "RESONANCE & HARMONIC OVERTONES (20% WEIGHT)";
+      case "Signal Quality": return "LEGACY SIGNAL PROXY (20% WEIGHT)";
       default: return "EXPRESSIVE DYNAMICS & VOLUME CONTROL (15% WEIGHT)";
     }
   };
@@ -91,6 +116,36 @@ export default function ResultsView({
     if (val > 70) return "text-tertiary";
     return "text-secondary";
   };
+
+  if (invalidInput) {
+    return (
+      <InvalidInputState
+        result={result}
+        recordingUrl={recordingUrl}
+        recordingLabel={recordingLabel}
+        onRetake={onOpenReview}
+        onTryAgainSameTask={onTryAgainSameTask}
+        onBackToTaskSetup={onBackToTaskSetup}
+        onBackToDashboard={onBackToDashboard}
+      />
+    );
+  }
+
+  if (safeUiReadyAnalysis) {
+    return (
+      <UiReadyResultView
+        result={result}
+        analysis={safeUiReadyAnalysis}
+        recordingUrl={recordingUrl}
+        recordingLabel={recordingLabel}
+        onReview={onOpenReview}
+        onTryAgainSameTask={onTryAgainSameTask}
+        onBackToTaskSetup={onBackToTaskSetup}
+        onPracticeTask={onPracticeTask}
+        onBackToDashboard={onBackToDashboard}
+      />
+    );
+  }
 
   return (
     <div className="space-y-10 pb-12 animate-fade-in relative z-10">
@@ -110,7 +165,7 @@ export default function ResultsView({
           </p>
           <div className="mt-2.5 flex items-center justify-center md:justify-start gap-1.5 text-on-surface-variant/50 text-[10px] font-bold tracking-wider uppercase">
             <CheckCircle2 className="w-4.5 h-4.5 text-tertiary" />
-            <span>POWERED BY PESNQ WEIGHTED BIO-COACH ANALYSIS</span>
+            <span>LEGACY MODEL ANALYSIS</span>
           </div>
         </div>
         <button 
@@ -167,23 +222,22 @@ export default function ResultsView({
                 {result.overallScore}
               </span>
               <span className="text-[10px] font-bold tracking-widest text-on-surface-variant mt-1 uppercase">
-                Vocal Rating
+                Legacy Score
               </span>
             </div>
           </div>
 
           <div className="text-center space-y-3 px-2">
             <h2 className="font-display font-extrabold text-xl md:text-2xl text-secondary">
-              {result.overallScore > 90 ? "Grammy-Ready Pitch!" : 
-               result.overallScore > 80 ? "Stunning High Notes!" : "Magnificent Control!"}
+              {result.overallScore > 80 ? "Strong Legacy Estimate" : "Legacy Estimate Ready"}
             </h2>
             <p className="text-xs md:text-sm text-on-surface-variant/90 leading-relaxed max-w-sm">
-              Your vocal expansion range is blooming beautifully. Deep control preserved tone stability accurately through challenging keys transitions.
+              This older result view shows model estimates only. Use the task-aware analysis when available for safer scoring and feedback.
             </p>
             <div className="pt-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container-highest border border-white/5 rounded-full text-[10px] font-bold text-on-surface uppercase tracking-wider">
                 <Wind className="w-3.5 h-3.5 text-primary" />
-                Integrated Resonance: <span className="text-primary">OPTIMAL</span>
+                Result Mode: <span className="text-primary">LEGACY</span>
               </span>
             </div>
           </div>
@@ -205,7 +259,7 @@ export default function ResultsView({
               {[
                 { label: "Intonation", val: result.intonation, colorClass: "from-secondary to-primary" },
                 { label: "Rhythm", val: result.rhythm, colorClass: "to-tertiary from-tertiary/60" },
-                { label: "Timbre", val: result.timbre, colorClass: "from-secondary to-secondary-fixed" },
+                { label: "Signal Quality", val: result.timbre, colorClass: "from-secondary to-secondary-fixed" },
                 { label: "Dynamics", val: result.dynamics, colorClass: "from-primary to-primary-container" },
               ].map((item, idx) => (
                 <div key={idx} className="space-y-2">
@@ -235,34 +289,34 @@ export default function ResultsView({
             </div>
           </div>
 
-          {/* AI-Powered Coaching Notes */}
+          {/* ML Coaching Feedback (primary) + Gemini enhancement */}
           <div className="glass-card rounded-[24px] p-6 md:p-8 relative overflow-hidden border border-tertiary/10">
-            {/* Soft backdrop glow to indicate AI model output */}
             <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-tertiary/5 blur-[50px] pointer-events-none" />
-            
+
+            {/* Section header */}
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-tertiary animate-pulse" />
+                <Activity className="w-5 h-5 text-primary" />
                 <h3 className="font-display text-lg font-bold text-on-surface">
-                  {isLoadingAI ? "AI Coach is analyzing..." : "Scientific Coaching Feedback"}
+                  {geminiNotes ? "AI Coaching Feedback" : "Vocal Model Coaching"}
                 </h3>
               </div>
-              <span className="text-[10px] font-bold text-tertiary bg-tertiary/15 border border-tertiary/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                Gemini 3.5
+              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {geminiNotes ? "Gemini" : "ML Model"}
               </span>
             </div>
 
-            {isLoadingAI ? (
-              <div className="space-y-4 py-4 animate-pulse">
-                <div className="h-4 bg-white/5 rounded w-1/3" />
-                <div className="h-3 bg-white/5 rounded w-full" />
-                <div className="h-3 bg-white/5 rounded w-5/6" />
-                <div className="h-4 bg-white/5 rounded w-1/4 pt-4" />
-                <div className="h-3 bg-white/5 rounded w-full" />
-              </div>
-            ) : (
-              <ul className="space-y-6">
-                {coachingNotes.map((note, idx) => (
+            {/* ML model summary */}
+            {!geminiNotes && result.mlAnalysis?.summary && (
+              <p className="text-sm text-on-surface-variant/90 mb-5 leading-relaxed">
+                {result.mlAnalysis.summary}
+              </p>
+            )}
+
+            {/* Gemini notes (after user clicks the button) */}
+            {geminiNotes ? (
+              <ul className="space-y-6 mb-6">
+                {geminiNotes.map((note, idx) => (
                   <li key={idx} className="flex gap-4">
                     <div className="mt-1 flex-shrink-0">
                       {note.type === "success" ? (
@@ -283,22 +337,105 @@ export default function ResultsView({
                       <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">
                         {note.category}
                       </span>
-                      <h4 className="font-bold text-sm text-white mb-0.5">
-                        {note.title}
-                      </h4>
-                      <p className="text-xs text-on-surface-variant/90 leading-relaxed">
-                        {note.text}
-                      </p>
+                      <h4 className="font-bold text-sm text-white mb-0.5">{note.title}</h4>
+                      <p className="text-xs text-on-surface-variant/90 leading-relaxed">{note.text}</p>
                     </div>
                   </li>
                 ))}
               </ul>
+            ) : (
+              /* ML model issues + exercises */
+              <div className="space-y-4 mb-6">
+                {result.mlAnalysis?.issues && result.mlAnalysis.issues.length > 0 ? (
+                  result.mlAnalysis.issues.map((issue: string, idx: number) => (
+                    <div key={idx} className="flex gap-3">
+                      <div className="mt-0.5 flex-shrink-0 w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center">
+                        <AlertCircle className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-white mb-0.5">{issue}</p>
+                        {result.mlAnalysis?.exercises?.[idx] && (
+                          <p className="text-[11px] text-tertiary leading-relaxed">
+                            Exercise: {result.mlAnalysis.exercises[idx]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  /* fallback coachingNotes if ML analysis unavailable */
+                  <ul className="space-y-6">
+                    {result.coachingNotes.map((note, idx) => (
+                      <li key={idx} className="flex gap-4">
+                        <div className="mt-1 flex-shrink-0">
+                          {note.type === "success" ? (
+                            <div className="w-7 h-7 bg-tertiary/10 rounded-full flex items-center justify-center text-tertiary">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                          ) : note.type === "warning" ? (
+                            <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                              <AlertCircle className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <div className="w-7 h-7 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
+                              <Info className="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[9px] font-bold text-tertiary uppercase tracking-wider">
+                            {note.category}
+                          </span>
+                          <h4 className="font-bold text-sm text-white mb-0.5">{note.title}</h4>
+                          <p className="text-xs text-on-surface-variant/90 leading-relaxed">{note.text}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
 
-            {aiApiKeyMissing && (
-              <div className="mt-6 p-3 rounded-lg bg-white/5 border border-white/10 text-[11px] text-on-surface-variant/80 text-center">
-                Configure your <span className="font-bold text-primary">GEMINI_API_KEY</span> in Settings &gt; Secrets to experience real live AI-crafted feedback based on your pitch arrays.
+            {/* Get AI Coaching button */}
+            {!geminiNotes && (
+              <div className="border-t border-white/5 pt-5">
+                <button
+                  onClick={handleGetAICoaching}
+                  disabled={geminiAvailable === false || isLoadingAI}
+                  title={geminiAvailable === false ? "Gemini API key not configured — add GEMINI_API_KEY to .env" : undefined}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-tertiary/20 to-primary/20 border border-tertiary/30 text-sm font-bold text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                >
+                  {isLoadingAI ? (
+                    <Loader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-tertiary" />
+                  )}
+                  {isLoadingAI
+                    ? "Consulting AI Coach…"
+                    : geminiAvailable === false
+                    ? "AI Coaching Unavailable"
+                    : "Get AI Coaching"}
+                </button>
+                {geminiError && (
+                  <p className="mt-2 text-[11px] text-primary text-center">{geminiError}</p>
+                )}
+                {geminiAvailable === false && (
+                  <p className="mt-2 text-[10px] text-on-surface-variant/50 text-center">
+                    Add <span className="font-bold text-primary/70">GEMINI_API_KEY</span> to{" "}
+                    <code className="text-tertiary/70">new_frontend/.env</code> to enable
+                  </p>
+                )}
               </div>
+            )}
+
+            {/* Reset to ML coaching if user wants to go back */}
+            {geminiNotes && (
+              <button
+                onClick={() => setGeminiNotes(null)}
+                className="mt-4 text-[11px] text-on-surface-variant/50 hover:text-on-surface-variant transition-colors underline underline-offset-2"
+              >
+                Show ML model coaching instead
+              </button>
             )}
           </div>
 
@@ -310,7 +447,7 @@ export default function ResultsView({
       {result.mlAnalysis && (
         <section className="space-y-6">
           <h2 className="font-display font-extrabold text-xl md:text-2xl text-white">
-            Advanced ML Analysis
+            Legacy Signal Metrics
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -332,11 +469,11 @@ export default function ResultsView({
               </div>
             </div>
 
-            {/* Breath & Onset Detection */}
+            {/* Breath & Onset Model Signals */}
             <div className="glass-card rounded-[24px] p-6 border border-white/5">
               <div className="flex items-center gap-2 mb-4">
                 <Wind className="w-5 h-5 text-secondary" />
-                <h4 className="font-bold text-sm text-on-surface">Breath & Onset</h4>
+                <h4 className="font-bold text-sm text-on-surface">Breath/Onset Signals</h4>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -350,15 +487,15 @@ export default function ResultsView({
               </div>
             </div>
 
-            {/* Technique Detection */}
+            {/* Technique head output is shown as an unverified model signal only. */}
             <div className="glass-card rounded-[24px] p-6 border border-white/5">
               <div className="flex items-center gap-2 mb-4">
                 <Layers className="w-5 h-5 text-tertiary" />
-                <h4 className="font-bold text-sm text-on-surface">Technique</h4>
+                <h4 className="font-bold text-sm text-on-surface">Technique Head</h4>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-on-surface-variant">Detected</span>
+                  <span className="text-xs text-on-surface-variant">Raw Label</span>
                   <span className="text-sm font-bold text-tertiary capitalize">{result.mlAnalysis.technique}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -368,12 +505,12 @@ export default function ResultsView({
               </div>
             </div>
 
-            {/* Voice Quality Metrics */}
+            {/* Voice Quality Proxy Metrics */}
             {result.mlAnalysis.voiceQuality && (
               <div className="glass-card rounded-[24px] p-6 border border-white/5">
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles className="w-5 h-5 text-primary" />
-                  <h4 className="font-bold text-sm text-on-surface">Voice Quality</h4>
+                  <h4 className="font-bold text-sm text-on-surface">Signal Quality Proxies</h4>
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
@@ -385,7 +522,7 @@ export default function ResultsView({
                     <span className="text-sm font-bold text-secondary">{result.mlAnalysis.voiceQuality.jitterPercent.toFixed(2)}%</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-on-surface-variant">Breathiness</span>
+                    <span className="text-xs text-on-surface-variant">Noise Proxy</span>
                     <span className="text-sm font-bold text-tertiary capitalize">{result.mlAnalysis.voiceQuality.breathiness}</span>
                   </div>
                 </div>
@@ -438,49 +575,21 @@ export default function ResultsView({
             )}
           </div>
 
-          {/* Detailed Issues and Exercises */}
-          {(result.mlAnalysis.issues.length > 0 || result.mlAnalysis.exercises.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {result.mlAnalysis.issues.length > 0 && (
-                <div className="glass-card rounded-[24px] p-6 border border-primary/20">
-                  <h4 className="font-bold text-sm text-on-surface mb-4 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-primary" />
-                    Detected Issues
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.mlAnalysis.issues.map((issue: string, idx: number) => (
-                      <li key={idx} className="text-xs text-on-surface-variant/80 pl-4 border-l-2 border-primary/30">
-                        {issue}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {result.mlAnalysis.exercises.length > 0 && (
-                <div className="glass-card rounded-[24px] p-6 border border-secondary/20">
-                  <h4 className="font-bold text-sm text-on-surface mb-4 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-secondary" />
-                    Recommended Exercises
-                  </h4>
-                  <ul className="space-y-2">
-                    {result.mlAnalysis.exercises.map((exercise: string, idx: number) => (
-                      <li key={idx} className="text-xs text-on-surface-variant/80 pl-4 border-l-2 border-secondary/30">
-                        {exercise}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
         </section>
       )}
 
       {/* Primary actions row */}
+      <RecordingPlaybackControls
+        audioUrl={recordingUrl}
+        label={recordingLabel || "My Recording"}
+        onTryAgainSameTask={onTryAgainSameTask}
+        onBackToTaskSetup={onBackToTaskSetup}
+      />
+
+      {/* Primary actions row */}
       <section className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-6">
         <button 
-          onClick={onRetake}
+          onClick={onOpenReview}
           className="w-full sm:w-auto px-10 py-4 rounded-full border-2 border-primary text-primary text-sm font-bold hover:bg-primary/10 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2"
         >
           <RotateCcw className="w-4 h-4" />

@@ -1,0 +1,244 @@
+{
+  "sample": "03_sustained_aaa",
+  "input_path": "samples/03_sustained_aaa.wav",
+  "checkpoint": "ml_new/checkpoints/unified/best.pt",
+  "device": "cpu",
+  "model": "UnifiedVocalModel",
+  "raw_outputs_saved_before": [
+    "validity_gating",
+    "note_segmentation",
+    "scoring",
+    "coaching_text"
+  ],
+  "artifacts": {
+    "json": "reports/model_output_audit/03_sustained_aaa/03_sustained_aaa_raw_summary.json",
+    "npz": "reports/model_output_audit/03_sustained_aaa/03_sustained_aaa_raw_outputs.npz",
+    "plot": "reports/model_output_audit/03_sustained_aaa/03_sustained_aaa_raw_outputs.svg",
+    "markdown": "reports/model_output_audit/03_sustained_aaa/03_sustained_aaa_raw_outputs.md"
+  },
+  "summary": {
+    "sample": "03_sustained_aaa",
+    "duration_s": 6.933375,
+    "frames": 694,
+    "hop_s": 0.01,
+    "audio_rms": 0.018262263387441635,
+    "thresholds": {
+      "voiced_default": 0.5,
+      "breath_default": 0.35,
+      "onset_default": 0.3
+    },
+    "voiced_probability": {
+      "mean": 0.6935769715896601,
+      "median": 0.6863743960857391,
+      "min": 0.39619359374046326,
+      "max": 0.8914881944656372,
+      "percentiles": {
+        "p01": 0.5024720853567124,
+        "p05": 0.5665212333202362,
+        "p10": 0.5842042684555053,
+        "p25": 0.6221798658370972,
+        "p50": 0.6863743960857391,
+        "p75": 0.7486364394426346,
+        "p90": 0.8453348100185394,
+        "p95": 0.8669559508562088,
+        "p99": 0.8783353579044342
+      },
+      "fraction_above_0_3": 1.0,
+      "fraction_above_0_5": 0.9899135446685879,
+      "fraction_above_0_7": 0.43515850144092216,
+      "fraction_above_0_9": 0.0,
+      "near_default_threshold_fraction": 0.027377521613832854
+    },
+    "pitch_confidence": {
+      "max_softmax_probability": {
+        "mean": 0.21132504480813097,
+        "median": 0.18648440390825272,
+        "min": 0.030072031542658806,
+        "max": 0.4270501732826233,
+        "percentiles": {
+          "p01": 0.07729576021432877,
+          "p05": 0.10773830451071262,
+          "p10": 0.12890069484710692,
+          "p25": 0.14736635982990265,
+          "p50": 0.18648440390825272,
+          "p75": 0.25715263187885284,
+          "p90": 0.3649781525135041,
+          "p95": 0.38248913437128074,
+          "p99": 0.4115162947773935
+        }
+      },
+      "top1_top2_margin": {
+        "mean": 0.04383072499132122,
+        "median": 0.03187808394432068,
+        "min": 0.00014643371105194092,
+        "max": 0.18455688655376434,
+        "percentiles": {
+          "p01": 0.0008837161958217621,
+          "p05": 0.0028274063020944594,
+          "p10": 0.005687166750431061,
+          "p25": 0.013688202947378159,
+          "p50": 0.03187808394432068,
+          "p75": 0.06349361315369606,
+          "p90": 0.09807508513331414,
+          "p95": 0.125168339908123,
+          "p99": 0.16729954198002828
+        }
+      },
+      "entropy": {
+        "mean": 2.8381524761059786,
+        "median": 2.938626289367676,
+        "min": 1.4795637130737305,
+        "max": 4.8026957511901855,
+        "percentiles": {
+          "p01": 1.5114499199390412,
+          "p05": 1.5506060600280762,
+          "p10": 1.6297907471656798,
+          "p25": 2.5870220065116882,
+          "p50": 2.938626289367676,
+          "p75": 3.296955168247223,
+          "p90": 3.4339641332626343,
+          "p95": 3.577078068256378,
+          "p99": 4.028016853332522
+        }
+      },
+      "normalized_entropy": {
+        "mean": 0.5465388145158202,
+        "median": 0.565886914730072,
+        "min": 0.2849173843860626,
+        "max": 0.9248480200767517,
+        "percentiles": {
+          "p01": 0.29105767369270324,
+          "p05": 0.298597913980484,
+          "p10": 0.3138463944196701,
+          "p25": 0.49817898869514465,
+          "p50": 0.565886914730072,
+          "p75": 0.6348897814750671,
+          "p90": 0.6612733542919159,
+          "p95": 0.6888326197862625,
+          "p99": 0.7756692320108418
+        }
+      }
+    },
+    "raw_f0_before_smoothing": {
+      "voiced_frame_fraction": 0.9899135446685879,
+      "mean_hz": 120.43588729925031,
+      "median_hz": 138.57777404785156,
+      "min_hz": 70.63591003417969,
+      "max_hz": 659.1907958984375,
+      "trimmed_p05_hz": 72.00910949707031,
+      "trimmed_p95_hz": 149.67227172851562,
+      "trimmed_range_hz": 77.66316223144531,
+      "octave_jump_count": 27,
+      "semitone_jump_count": 31,
+      "direction_slope_hz_per_s": 0.6439985226196246
+    },
+    "smoothed_f0_after_smoothing": {
+      "voiced_frame_fraction": 0.9899135446685879,
+      "mean_hz": 314.2233784771382,
+      "median_hz": 288.03643798828125,
+      "min_hz": 79.28612518310547,
+      "max_hz": 659.1907958984375,
+      "trimmed_p05_hz": 84.00072479248047,
+      "trimmed_p95_hz": 554.3110961914062,
+      "trimmed_range_hz": 470.3103713989258,
+      "octave_jump_count": 1,
+      "semitone_jump_count": 4,
+      "direction_slope_hz_per_s": -10.19181331466286
+    },
+    "f0_smoothing_diagnostics": {
+      "isolated_spike_count": 5,
+      "octave_jump_count": 23,
+      "postprocessed_octave_jump_count": 0,
+      "semitone_jump_count": 31,
+      "postprocessed_semitone_jump_count": 6,
+      "octave_correction_count": 615,
+      "f0_stability_cents": 810.873232830505
+    },
+    "onset_probability": {
+      "mean": 0.3743158827941081,
+      "median": 0.3965401351451874,
+      "min": 0.18013857305049896,
+      "max": 0.5019333362579346,
+      "percentiles": {
+        "p01": 0.18793686538934706,
+        "p05": 0.22494189962744712,
+        "p10": 0.2527005225419998,
+        "p25": 0.341499499976635,
+        "p50": 0.3965401351451874,
+        "p75": 0.42562147974967957,
+        "p90": 0.44469490349292756,
+        "p95": 0.4532783180475235,
+        "p99": 0.48377300828695313
+      },
+      "fraction_above_default_threshold": 0.8544668587896254
+    },
+    "breath_probability": {
+      "mean": 0.5479648811930539,
+      "median": 0.5804265141487122,
+      "min": 0.17188860476016998,
+      "max": 0.741714358329773,
+      "percentiles": {
+        "p01": 0.17677730277180673,
+        "p05": 0.2129865251481533,
+        "p10": 0.27504069805145265,
+        "p25": 0.5449872612953186,
+        "p50": 0.5804265141487122,
+        "p75": 0.6134413033723831,
+        "p90": 0.6396978259086609,
+        "p95": 0.6509064912796021,
+        "p99": 0.6742902725934984
+      },
+      "fraction_above_default_threshold": 0.8948126801152738
+    },
+    "technique": {
+      "top_label": "vocal_fry",
+      "top_probability": 0.9615278244018555,
+      "logits": {
+        "belt": -12.057296752929688,
+        "breathy": -0.47995007038116455,
+        "fast_forte": -18.943532943725586,
+        "fast_piano": -9.507699966430664,
+        "forte": -17.636234283447266,
+        "glissando": -10.421191215515137,
+        "inhaled": -2.1022913455963135,
+        "lip_trill": -2.3164589405059814,
+        "messa": -9.15308952331543,
+        "mixed_voice_and_falsetto": -4.948657512664795,
+        "pharyngeal": -12.904109001159668,
+        "pp": -8.806591987609863,
+        "slow_forte": -8.267610549926758,
+        "slow_piano": -3.1306185722351074,
+        "spoken": 3.439532518386841,
+        "straight": -1.5178583860397339,
+        "trill": -5.522032260894775,
+        "trillo": -13.280937194824219,
+        "vibrato": -4.692539691925049,
+        "vocal_fry": 6.693521976470947
+      },
+      "probabilities": {
+        "belt": 6.9117009893204795e-09,
+        "breathy": 0.0007371614337898791,
+        "fast_forte": 7.062046260275512e-12,
+        "fast_piano": 8.848319765775159e-08,
+        "forte": 2.6102564554264518e-11,
+        "glissando": 3.5492462302499916e-08,
+        "inhaled": 0.0001455420715501532,
+        "lip_trill": 0.0001174834615085274,
+        "messa": 1.2614385980214138e-07,
+        "mixed_voice_and_falsetto": 8.449432243651245e-06,
+        "pharyngeal": 2.963593592753e-09,
+        "pp": 1.7838063115505065e-07,
+        "slow_forte": 3.057910475945391e-07,
+        "slow_piano": 5.204653643886559e-05,
+        "spoken": 0.037134040147066116,
+        "straight": 0.0002610987576190382,
+        "trill": 4.762270691571757e-06,
+        "trillo": 2.033127666223322e-09,
+        "vibrato": 1.0915863640548196e-05,
+        "vocal_fry": 0.9615278244018555
+      },
+      "unreliable": true,
+      "note": "Technique head output is reported for raw-output audit only and should not be treated as reliable coaching evidence."
+    }
+  }
+}

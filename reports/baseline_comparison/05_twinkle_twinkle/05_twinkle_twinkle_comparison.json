@@ -1,0 +1,52 @@
+{
+  "sample": "05_twinkle_twinkle",
+  "input_path": "samples/05_twinkle_twinkle.wav",
+  "duration_s": 8.5546875,
+  "frames_compared": 856,
+  "checkpoint": {
+    "f0_coverage": 0.9334112149532711,
+    "median_f0_hz": 171.2675018310547,
+    "min_f0_hz": 65.4000015258789,
+    "max_f0_hz": 423.3371276855469,
+    "raw_f0_range_hz": 357.93712615966797,
+    "trimmed_p05_hz": 79.28612518310547,
+    "trimmed_p95_hz": 233.05909729003906,
+    "trimmed_f0_range_hz": 153.7729721069336,
+    "octave_jump_count": 8,
+    "semitone_jump_count": 15,
+    "octave_jump_rate": 0.9345794392523364,
+    "semitone_jump_rate": 1.7523364485981308,
+    "f0_stability_cents": 449.89153034284766,
+    "direction_slope_hz_per_s": 0.35104922917949427,
+    "median_voiced_probability": 0.9059440195560455,
+    "mean_voiced_probability": 0.8199214041929379,
+    "voiced_frame_percentage": 0.9334112149532711,
+    "pitch_confidence_mean": 0.31103008042664104,
+    "pitch_confidence_median": 0.3668133169412613
+  },
+  "baseline_pyin": {
+    "f0_coverage": 0.8212616822429907,
+    "median_f0_hz": 172.5916290283203,
+    "min_f0_hz": 32.70000076293945,
+    "max_f0_hz": 237.13290405273438,
+    "raw_f0_range_hz": 204.43290328979492,
+    "trimmed_p05_hz": 48.71245193481445,
+    "trimmed_p95_hz": 230.38218688964844,
+    "trimmed_f0_range_hz": 181.66973495483398,
+    "octave_jump_count": 0,
+    "semitone_jump_count": 0,
+    "octave_jump_rate": 0.0,
+    "semitone_jump_rate": 0.0,
+    "f0_stability_cents": 648.1782670350115,
+    "direction_slope_hz_per_s": -6.902067384718105,
+    "median_voiced_probability": 0.6159498691558838,
+    "mean_voiced_probability": 0.4861204121827592,
+    "voiced_frame_percentage": 0.8212616822429907,
+    "pitch_confidence_mean": null,
+    "pitch_confidence_median": null
+  },
+  "artifacts": {
+    "json": "reports/baseline_comparison/05_twinkle_twinkle/05_twinkle_twinkle_comparison.json",
+    "plot": "reports/baseline_comparison/05_twinkle_twinkle/05_twinkle_twinkle_comparison.svg"
+  }
+}

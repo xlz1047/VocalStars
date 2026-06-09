@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import TopAppBar from "./components/TopAppBar";
 import DashboardView from "./components/DashboardView";
 import StudioView from "./components/StudioView";
 import ResultsView from "./components/ResultsView";
 import ReviewView from "./components/ReviewView";
+import AICoachDebugView from "./components/AICoachDebugView";
+import TaskPracticeSetup from "./components/TaskPracticeSetup";
+import ExercisesView from "./components/ExercisesView";
 
-import { Song, Exercise, PerformanceResult } from "./types";
+import { Song, Exercise, PerformanceResult, PracticePreset, RecordedAttempt, TaskConfig } from "./types";
 import { SONGS } from "./utils/musicDb";
+import { useLearningPath } from "./utils/learningPath";
 import { 
   Play, 
   X, 
@@ -30,22 +34,48 @@ export default function App() {
 
   // Core active states
   const [activeSong, setActiveSong] = useState<Song>(SONGS[0]);
+  const [activeTaskConfig, setActiveTaskConfig] = useState<TaskConfig | null>(null);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [activeWarmup, setActiveWarmup] = useState<Exercise | null>(null);
   const [warmupActive, setWarmupActive] = useState(false);
   const [warmupTimer, setWarmupTimer] = useState(0);
   const [warmupFinished, setWarmupFinished] = useState(false);
 
+  const { markCompleted } = useLearningPath();
+
   // Results & History trackers
   const [currentResult, setCurrentResult] = useState<PerformanceResult | null>(null);
+  const [currentRecording, setCurrentRecording] = useState<RecordedAttempt | null>(null);
   const [previousTakes, setPreviousTakes] = useState<PerformanceResult[]>([]);
+
+  useEffect(() => {
+    return () => {
+      if (currentRecording?.audioUrl) {
+        URL.revokeObjectURL(currentRecording.audioUrl);
+      }
+    };
+  }, [currentRecording?.audioUrl]);
 
   // Navigation controller
   const handleNavigate = (view: string) => {
     if (view === "studio") {
-      setCurrentView("studio");
+      // "Live Studio" from sidebar: go straight to studio if a song is already
+      // selected, otherwise send to task-setup to pick one first.
+      if (activeSong) {
+        setActiveTaskConfig(prev => prev ?? { task_type: "free_singing", scoring_mode: "no_reference" });
+        setCurrentView("studio");
+      } else {
+        setCurrentView("task-setup");
+      }
     } else {
       setCurrentView(view);
     }
+  };
+
+  // Quick-start: skip task-setup entirely and go straight to free singing
+  const handleQuickStart = () => {
+    setActiveTaskConfig({ task_type: "free_singing", scoring_mode: "no_reference" });
+    setCurrentView("studio");
   };
 
   // Launch vocal warmup overlay
@@ -70,13 +100,81 @@ export default function App() {
 
   const handleSelectSongFromCatalog = (song: Song) => {
     setActiveSong(song);
+    setActiveTaskConfig(null);
+    setCurrentView("task-setup");
+  };
+
+  const handleStartPracticePreset = (preset: PracticePreset) => {
+    setActiveSong(preset.song);
+    setActiveTaskConfig(preset.taskConfig);
+    setActivePresetId(preset.id);
     setCurrentView("studio");
   };
 
-  const handleSessionComplete = (result: PerformanceResult) => {
-    setCurrentResult(result);
-    setPreviousTakes((prev) => [result, ...prev]);
+  const handleStartTaskPractice = (taskConfig: TaskConfig) => {
+    setActiveTaskConfig(taskConfig);
+    setCurrentView("studio");
+  };
+
+  const handlePracticeRecommendedTask = (taskConfig: TaskConfig, presetId?: string) => {
+    setCurrentResult(null);
+    setCurrentRecording((previous) => {
+      if (previous?.audioUrl) {
+        URL.revokeObjectURL(previous.audioUrl);
+      }
+      return null;
+    });
+    setActiveTaskConfig(taskConfig);
+    setActivePresetId(presetId ?? null);
+    setCurrentView("studio");
+  };
+
+  const handleSessionComplete = (result: PerformanceResult, attempt?: Omit<RecordedAttempt, "audioUrl">) => {
+    const inputType = result.uiReadyAnalysis?.analysis_validity?.input_type;
+    const invalidInputTypes = new Set(["no_voice_or_noise", "speech_like_or_non_singing", "low_confidence_or_unreliable"]);
+    const sessionState = result.analysisUnavailable
+      ? "error"
+      : inputType && invalidInputTypes.has(inputType)
+      ? "invalid_input"
+      : "review";
+    const resultWithTask: PerformanceResult = {
+      ...result,
+      taskConfig: result.taskConfig || activeTaskConfig || undefined,
+      sessionState,
+    };
+    if (attempt) {
+      setCurrentRecording((previous) => {
+        if (previous?.audioUrl) {
+          URL.revokeObjectURL(previous.audioUrl);
+        }
+        return {
+          ...attempt,
+          audioUrl: URL.createObjectURL(attempt.audioBlob),
+        };
+      });
+    }
+    setCurrentResult(resultWithTask);
+    setPreviousTakes((prev) => [resultWithTask, ...prev]);
+    // Mark the completed preset in the learning path (only for valid sessions).
+    if (sessionState === "review" && activePresetId) {
+      markCompleted(activePresetId);
+    }
     setCurrentView("results");
+  };
+
+  const handleRetrySameTask = () => {
+    setCurrentResult(null);
+    setCurrentRecording((previous) => {
+      if (previous?.audioUrl) {
+        URL.revokeObjectURL(previous.audioUrl);
+      }
+      return null;
+    });
+    setCurrentView("studio");
+  };
+
+  const handleBackToTaskSetup = () => {
+    setCurrentView("task-setup");
   };
 
   return (
@@ -107,10 +205,22 @@ export default function App() {
         >
           {/* Dashboard Panel View */}
           {currentView === "dashboard" && (
-            <DashboardView 
+            <DashboardView
               onSelectSong={handleSelectSongFromCatalog}
+              onStartPracticePreset={handleStartPracticePreset}
               onActiveWarmup={handleStartWarmup}
+              onQuickStart={handleQuickStart}
               searchQuery={searchQuery}
+            />
+          )}
+
+          {/* Guided task setup before recording */}
+          {currentView === "task-setup" && (
+            <TaskPracticeSetup
+              song={activeSong}
+              initialTaskConfig={activeTaskConfig}
+              onStartPractice={handleStartTaskPractice}
+              onBack={() => setCurrentView("dashboard")}
             />
           )}
 
@@ -118,8 +228,9 @@ export default function App() {
           {currentView === "studio" && (
             <StudioView 
               song={activeSong}
+              taskConfig={activeTaskConfig}
               onSessionComplete={handleSessionComplete}
-              onExit={() => setCurrentView("dashboard")}
+              onExit={() => setCurrentView("task-setup")}
             />
           )}
 
@@ -127,7 +238,12 @@ export default function App() {
           {currentView === "results" && currentResult && (
             <ResultsView 
               result={currentResult}
-              onRetake={() => setCurrentView("review")}
+              recordingUrl={currentRecording?.audioUrl}
+              recordingLabel={currentRecording?.sourceLabel}
+              onOpenReview={() => setCurrentView("review")}
+              onTryAgainSameTask={handleRetrySameTask}
+              onBackToTaskSetup={handleBackToTaskSetup}
+              onPracticeTask={handlePracticeRecommendedTask}
               onBackToDashboard={() => setCurrentView("dashboard")}
             />
           )}
@@ -137,6 +253,11 @@ export default function App() {
             <ReviewView 
               song={activeSong}
               result={currentResult}
+              recordingUrl={currentRecording?.audioUrl}
+              recordingLabel={currentRecording?.sourceLabel}
+              onTryAgainSameTask={handleRetrySameTask}
+              onBackToTaskSetup={handleBackToTaskSetup}
+              onPracticeTask={handlePracticeRecommendedTask}
               onClose={() => setCurrentView("results")}
             />
           )}
@@ -200,6 +321,18 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Exercises & Practice Page */}
+          {currentView === "exercises" && (
+            <ExercisesView
+              onStartPracticePreset={handleStartPracticePreset}
+              onSelectSong={handleSelectSongFromCatalog}
+            />
+          )}
+
+          {currentView === "ai-debug" && (
+            <AICoachDebugView />
           )}
 
         </main>
@@ -276,7 +409,7 @@ export default function App() {
                     }}
                     className="flex-1 py-3 rounded-xl bg-gradient-to-r from-secondary to-primary text-on-primary text-xs font-bold hover:brightness-110 hover:shadow-lg glow-pink"
                   >
-                    Go To Studio Studio
+                    Choose Practice
                   </button>
                 )}
               </div>
